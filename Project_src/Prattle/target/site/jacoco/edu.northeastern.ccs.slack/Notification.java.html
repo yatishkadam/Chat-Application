@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Notification.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.slack</a> &gt; <span class="el_source">Notification.java</span></div><h1>Notification.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.slack;
+import java.io.IOException;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import com.github.seratch.jslack.Slack;
+import com.github.seratch.jslack.api.webhook.Payload;
+
+public class Notification {
+<span class="fc" id="L10">	private static final Logger logger = LogManager.getLogger(Notification.class);</span>
+	
+	private Notification() {
+	}
+	
+	public static void sendNotificationToSlack(String message) {
+<span class="fc" id="L16">		String url = &quot;https://hooks.slack.com/services/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&quot;;</span>
+
+<span class="fc" id="L18">		Payload payload = Payload.builder()</span>
+<span class="fc" id="L19">		  .channel(&quot;#cs5500-team-207-f18&quot;)</span>
+<span class="fc" id="L20">		  .username(&quot;jSlack Bot&quot;)</span>
+<span class="fc" id="L21">		  .iconEmoji(&quot;:smile_cat:&quot;)</span>
+<span class="fc" id="L22">		  .text(message)</span>
+<span class="fc" id="L23">		  .build();</span>
+<span class="fc" id="L24">		Slack slack = Slack.getInstance();</span>
+		try {
+<span class="fc" id="L26">			slack.send(url, payload);</span>
+<span class="nc" id="L27">		} catch (IOException e) {</span>
+<span class="nc" id="L28">			logger.error(&quot;An error occured while sending message in slack!!&quot; + e);</span>
+<span class="fc" id="L29">		}</span>
+<span class="fc" id="L30">	}</span>
+	
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

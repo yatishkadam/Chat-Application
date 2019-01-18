@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GroupService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.db.services</a> &gt; <span class="el_source">GroupService.java</span></div><h1>GroupService.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.db.services;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import edu.northeastern.ccs.db.daos.GroupDao;
+
+public class GroupService {
+	/*
+	 * Logger
+	 */
+<span class="fc" id="L12">	private static final Logger logger = LogManager.getLogger(UserService.class);</span>
+
+<span class="fc" id="L14">	private static GroupDao groupDao = GroupDao.getInstance();</span>
+
+	private GroupService() {
+	}
+
+	/**
+	 * Creates the new group.
+	 *
+	 * @param groupName the group name
+	 * @param username the name of the user who creates the group
+	 * @return true, if successful
+	 */
+	// true if created, false if otherwise
+	public static boolean createNewGroup(String groupName, String username) {
+<span class="fc" id="L28">		int status = 0;</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">		if (!checkIfGroupExists(groupName)) {</span>
+<span class="fc" id="L30">			status = groupDao.createGroup(groupName);</span>
+			// add this user to group and make her/him admin
+			// by default, creator is admin
+<span class="fc" id="L33">			MembershipService.addAdmin(username, groupName);</span>
+		} else {
+<span class="fc" id="L35">			logger.warn(&quot;A group already exists by this name(&quot;+groupName+&quot;) [GROUP CREATION UNSUCCESSFUL]&quot;);</span>
+		}
+<span class="fc bfc" id="L37" title="All 2 branches covered.">		return (status == 1);</span>
+	}
+	
+	public static boolean checkIfGroupExists(String name) {
+<span class="fc bfc" id="L41" title="All 2 branches covered.">		return (groupDao.findGroupByName(name) != null);</span>
+	}
+		
+	// 1 means delete successful, otherwise failed
+		public static boolean deleteGroup(String groupName) {
+<span class="fc bfc" id="L46" title="All 2 branches covered.">			return (groupDao.deleteGroup(groupName) == 1);</span>
+		}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

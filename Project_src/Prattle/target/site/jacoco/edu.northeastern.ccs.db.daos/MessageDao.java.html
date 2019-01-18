@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MessageDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.db.daos</a> &gt; <span class="el_source">MessageDao.java</span></div><h1>MessageDao.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.db.daos;
+
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import edu.northeastern.ccs.db.services.ConnectionService;
+import edu.northeastern.ccs.im.models.MessageModel;
+
+/**
+ * The Class MessageDao.
+ */
+public class MessageDao {
+
+	/** The Constant logger. */
+<span class="fc" id="L23">	private static final Logger logger = LogManager.getLogger(MessageDao.class);</span>
+
+	/** The instance. */
+<span class="fc" id="L26">	private static MessageDao instance = null;</span>
+
+	/** The userdao. */
+<span class="fc" id="L29">	static UserDao userdao = null;</span>
+
+	/** The conn instance. */
+<span class="fc" id="L32">	static java.sql.Connection connInstance = null;</span>
+
+	/** The p statement. */
+<span class="fc" id="L35">	PreparedStatement pStatement = null;</span>
+
+	/** The results. */
+<span class="fc" id="L38">	ResultSet results = null;</span>
+
+	/**
+	 * Instantiates a new message dao.
+	 */
+<span class="fc" id="L43">	private MessageDao() {</span>
+<span class="fc" id="L44">	}</span>
+
+	private static final String SENDERID = &quot;sender_id&quot;;
+	private static final String SENDERIP = &quot;sender_ip&quot;;
+	private static final String RECEIVERID = &quot;receiver_id&quot;;
+	private static final String RECEIVERIP = &quot;receiver_ip&quot;;
+
+	private static final String FINDMESSAGEBYID = &quot;SELECT * FROM `message` WHERE `message`.`id`=?&quot;;
+
+	private static final String CREATEMESSAGE = &quot; insert into message (text, sender_id, sender_ip,receiver_id,receiver_ip,date,delivered_status,recall_status,profane) &quot;
+			+ &quot;values (?, ?, ?, ?, ?,?,?,?,?)&quot;;
+
+	private static final String UPDATEMESSAGE = &quot;Update message SET `message`.`delivered_status` = ? WHERE `message`.`id` =?&quot;;
+
+	private static final String UPDATEMESSAGERECALLSTATUS = &quot;Update message SET `message`.`recall_status` = ? WHERE `message`.`id` =?&quot;;
+
+	private static final String UPDATESENDERIP = &quot;Update `message` SET `message`.`sender_ip` =? WHERE `message`.`sender_id` =?&quot;;
+
+	private static final String UPDATERECEIVERIP = &quot;Update `message` SET `message`.`receiver_ip` =? WHERE `message`.`receiver_id` =?&quot;;
+
+	private static final String GETUNDELIVEREDMESSAGES = &quot;Select * FROM `message`&quot;
+			+ &quot; WHERE `message`.`delivered_status`=? and `message`.`receiver_id` = ?&quot;;
+
+	private static final String GETSENTMESSAGES = &quot;SELECT * FROM `message` WHERE `message`.`sender_id`=? AND `message`.`recall_status`=?&quot;;
+
+	private static final String GETRECEIVEDMESSAGES = &quot;SELECT * FROM `message` WHERE `message`.`receiver_id`=? AND `message`.`recall_status`=?&quot;;
+
+	private static final String GETMESSAGECONVERSATION = &quot;SELECT * FROM `message` &quot;
+			+ &quot;WHERE `message`.`sender_id`=? AND `message`.`receiver_id`=?&quot;;
+
+	private static final String GETMESSAGELOG = &quot;SELECT * FROM `message` WHERE ((`message`.`sender_id`=?) OR (`message`.`receiver_id`=?)) AND (`message`.`date` BETWEEN ? and ? )&quot;;
+
+	/** The Constant GET_MESSAGE_DATE. */
+	private static final String GETMESSAGEDATE = &quot;select MAX(`message`.`date`) as max from `message` where `message`.`sender_id`= ?&quot;;
+
+	/** The Constant RECALL_LAST_MESSAGE_FOR_USER. */
+	private static final String RECALLLASTMESSAGEFORUSER = &quot;SELECT * from `message` where `message`.`date`= ? and `message`.`sender_id`= ?&quot;;
+
+	/**
+	 * Gets the single instance of MessageDao.
+	 *
+	 * @return single instance of MessageDao
+	 */
+	public static MessageDao getInstance() {
+		try {
+<span class="fc" id="L89">			connInstance = ConnectionService.getDatabaseConnection();</span>
+<span class="fc" id="L90">			userdao = UserDao.getInstance();</span>
+
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">			if (instance == null)</span>
+<span class="fc" id="L93">				instance = new MessageDao();</span>
+
+<span class="nc" id="L95">		} catch (ClassNotFoundException | SQLException e) {</span>
+<span class="nc" id="L96">			logger.error(e);</span>
+<span class="fc" id="L97">		}</span>
+<span class="fc" id="L98">		return instance;</span>
+	}
+
+	/**
+	 * Handle recall message.
+	 *
+	 * @param senderId the sender id
+	 * @return true, if successful
+	 */
+	public boolean handleRecallMessage(int senderId) {
+<span class="fc" id="L108">		boolean status = false;</span>
+<span class="fc" id="L109">		Timestamp timestamp = null;</span>
+		try {
+<span class="fc" id="L111">			pStatement = connInstance.prepareStatement(GETMESSAGEDATE);</span>
+<span class="fc" id="L112">			pStatement.setInt(1, senderId);</span>
+<span class="fc" id="L113">			results = pStatement.executeQuery();</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">			while (results.next()) {</span>
+<span class="fc" id="L115">				timestamp = results.getTimestamp(&quot;max&quot;);</span>
+				break;
+			}
+<span class="fc" id="L118">			pStatement.close();</span>
+<span class="fc" id="L119">			results.close();</span>
+<span class="fc" id="L120">			pStatement = connInstance.prepareStatement(RECALLLASTMESSAGEFORUSER);</span>
+<span class="fc" id="L121">			pStatement.setTimestamp(1, timestamp);</span>
+<span class="fc" id="L122">			pStatement.setInt(2, senderId);</span>
+<span class="fc" id="L123">			results = pStatement.executeQuery();</span>
+<span class="fc" id="L124">			int messageId = 0;</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">			while (results.next()) {</span>
+<span class="fc" id="L126">				messageId = results.getInt(&quot;id&quot;);</span>
+				break;
+			}
+<span class="fc" id="L129">			pStatement.close();</span>
+<span class="fc" id="L130">			results.close();</span>
+<span class="fc" id="L131">			setMessageDelivery(messageId, true);</span>
+<span class="fc" id="L132">			setMessageRecallStatus(messageId, true);</span>
+<span class="fc" id="L133">			pStatement.close();</span>
+<span class="fc" id="L134">			results.close();</span>
+<span class="fc" id="L135">			return true;</span>
+<span class="nc" id="L136">		} catch (SQLException e) {</span>
+<span class="nc" id="L137">			logger.error(e);</span>
+		}
+<span class="nc" id="L139">		return status;</span>
+	}
+
+	/**
+	 * Creates the message.
+	 *
+	 * @param message the message
+	 * @return the message model
+	 */
+	public MessageModel createMessage(MessageModel message) {
+<span class="fc" id="L149">		MessageModel msg = null;</span>
+		try {
+<span class="fc" id="L151">			pStatement = connInstance.prepareStatement(CREATEMESSAGE, Statement.RETURN_GENERATED_KEYS);</span>
+<span class="fc" id="L152">			pStatement.setString(1, message.getText());</span>
+<span class="fc" id="L153">			pStatement.setInt(2, message.getSenderId());</span>
+<span class="fc" id="L154">			pStatement.setString(3, message.getSenderIp());</span>
+<span class="fc" id="L155">			pStatement.setInt(4, message.getReceiverId());</span>
+<span class="fc" id="L156">			pStatement.setString(5, message.getSenderIp());</span>
+<span class="fc" id="L157">			pStatement.setTimestamp(6, message.getDate());</span>
+<span class="fc" id="L158">			pStatement.setBoolean(7, message.isDeliveredStatus());</span>
+<span class="fc" id="L159">			pStatement.setBoolean(8, message.isRecallStatus());</span>
+<span class="fc" id="L160">			pStatement.setBoolean(9, message.isProfane());</span>
+<span class="fc" id="L161">			pStatement.executeUpdate();</span>
+<span class="fc" id="L162">			results = pStatement.getGeneratedKeys();</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">			if (results.next()) {</span>
+<span class="fc" id="L164">				int messageId = results.getInt(1);</span>
+<span class="fc" id="L165">				results.close();</span>
+<span class="fc" id="L166">				pStatement.close();</span>
+<span class="fc" id="L167">				return findMessageById(messageId);</span>
+			} else {
+<span class="fc" id="L169">				results.close();</span>
+<span class="fc" id="L170">				pStatement.close();</span>
+			}
+<span class="nc" id="L172">		} catch (SQLException e) {</span>
+<span class="nc" id="L173">			logger.error(e);</span>
+<span class="fc" id="L174">		}</span>
+<span class="fc" id="L175">		return msg;</span>
+	}
+
+	/**
+	 * Find message by id.
+	 *
+	 * @param messageId the message id
+	 * @return the message model
+	 */
+	public MessageModel findMessageById(int messageId) {
+<span class="fc" id="L185">		MessageModel m = null;</span>
+<span class="fc" id="L186">		boolean found = false;</span>
+		try {
+<span class="fc" id="L188">			pStatement = connInstance.prepareStatement(FINDMESSAGEBYID);</span>
+<span class="fc" id="L189">			pStatement.setInt(1, messageId);</span>
+<span class="fc" id="L190">			results = pStatement.executeQuery();</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">			while (results.next()) {</span>
+<span class="fc" id="L192">				int id = results.getInt(&quot;id&quot;);</span>
+<span class="fc" id="L193">				String text = results.getString(&quot;text&quot;);</span>
+<span class="fc" id="L194">				int senderId = results.getInt(SENDERID);</span>
+<span class="fc" id="L195">				String senderIp = results.getString(SENDERIP);</span>
+<span class="fc" id="L196">				int receiverId = results.getInt(RECEIVERID);</span>
+<span class="fc" id="L197">				String receiverIp = results.getString(RECEIVERIP);</span>
+<span class="fc" id="L198">				Timestamp date = results.getTimestamp(&quot;date&quot;);</span>
+<span class="fc" id="L199">				boolean deliveredStatus = results.getBoolean(&quot;delivered_status&quot;);</span>
+<span class="fc" id="L200">				boolean recallStatus = results.getBoolean(&quot;recall_status&quot;);</span>
+<span class="fc" id="L201">				m = new MessageModel(id, text, senderId, senderIp, receiverId, receiverIp, date, deliveredStatus,</span>
+						recallStatus);
+<span class="fc" id="L203">				found = true;</span>
+<span class="fc" id="L204">				break;</span>
+			}
+<span class="fc" id="L206">			pStatement.close();</span>
+<span class="fc" id="L207">			results.close();</span>
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">			if (!found) {</span>
+<span class="nc" id="L209">				logger.info(&quot;id=&quot; + messageId + &quot; : No Message found ! &quot;);</span>
+<span class="nc" id="L210">				return null;</span>
+			}
+
+<span class="nc" id="L213">		} catch (SQLException e) {</span>
+<span class="nc" id="L214">			logger.error(e);</span>
+<span class="fc" id="L215">		}</span>
+<span class="fc" id="L216">		return m;</span>
+	}
+
+	/**
+	 * Sets the message delivery.
+	 *
+	 * @param messageId  the message id
+	 * @param isDelivered the is delivered
+	 * @return the int
+	 */
+	public int setMessageDelivery(int messageId, boolean isDelivered) {
+<span class="fc" id="L227">		int status = -1;</span>
+		try {
+<span class="fc" id="L229">			pStatement = connInstance.prepareStatement(UPDATEMESSAGE);</span>
+<span class="fc" id="L230">			pStatement.setBoolean(1, isDelivered);</span>
+<span class="fc" id="L231">			pStatement.setInt(2, messageId);</span>
+<span class="fc" id="L232">			status = pStatement.executeUpdate();</span>
+<span class="fc" id="L233">			pStatement.close();</span>
+<span class="nc" id="L234">		} catch (SQLException e) {</span>
+<span class="nc" id="L235">			logger.error(e);</span>
+<span class="fc" id="L236">		}</span>
+<span class="fc" id="L237">		return status;</span>
+	}
+
+	/**
+	 * Sets the message recall status.
+	 *
+	 * @param messageId    the message id
+	 * @param recallStatus the recall status
+	 * @return the int
+	 */
+	public int setMessageRecallStatus(int messageId, boolean recallStatus) {
+<span class="fc" id="L248">		int status = -1;</span>
+		try {
+<span class="fc" id="L250">			pStatement = connInstance.prepareStatement(UPDATEMESSAGERECALLSTATUS);</span>
+<span class="fc" id="L251">			pStatement.setBoolean(1, recallStatus);</span>
+<span class="fc" id="L252">			pStatement.setInt(2, messageId);</span>
+<span class="fc" id="L253">			status = pStatement.executeUpdate();</span>
+<span class="fc" id="L254">			pStatement.close();</span>
+<span class="nc" id="L255">		} catch (SQLException e) {</span>
+<span class="nc" id="L256">			logger.error(e);</span>
+<span class="fc" id="L257">		}</span>
+<span class="fc" id="L258">		return status;</span>
+	}
+
+	/**
+	 * Gets the list of undelivered messages for user.
+	 *
+	 * @param userId the user id
+	 * @return the list of undelivered messages for user
+	 */
+	public List&lt;MessageModel&gt; getListOfUndeliveredMessagesForUser(int userId) {
+<span class="fc" id="L268">		List&lt;MessageModel&gt; messages = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L270">			pStatement = connInstance.prepareStatement(GETUNDELIVEREDMESSAGES);</span>
+<span class="fc" id="L271">			pStatement.setBoolean(1, false);</span>
+<span class="fc" id="L272">			pStatement.setInt(2, userId);</span>
+<span class="fc" id="L273">			results = pStatement.executeQuery();</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L275">				int id = results.getInt(&quot;id&quot;);</span>
+<span class="fc" id="L276">				String text = results.getString(&quot;text&quot;);</span>
+<span class="fc" id="L277">				int senderId = results.getInt(SENDERID);</span>
+<span class="fc" id="L278">				String senderIp = results.getString(SENDERIP);</span>
+<span class="fc" id="L279">				int receiverId = results.getInt(RECEIVERID);</span>
+<span class="fc" id="L280">				String receiverIp = results.getString(RECEIVERIP);</span>
+<span class="fc" id="L281">				Timestamp creationDate = results.getTimestamp(&quot;date&quot;);</span>
+<span class="fc" id="L282">				MessageModel message = new MessageModel(text, senderId, senderIp, receiverId, receiverIp,</span>
+						creationDate);
+<span class="fc" id="L284">				message.setId(id);</span>
+<span class="fc" id="L285">				messages.add(message);</span>
+<span class="fc" id="L286">			}</span>
+<span class="fc" id="L287">			pStatement.close();</span>
+<span class="fc" id="L288">			results.close();</span>
+<span class="nc" id="L289">		} catch (SQLException e) {</span>
+<span class="nc" id="L290">			logger.error(e);</span>
+<span class="fc" id="L291">		}</span>
+<span class="fc" id="L292">		return messages;</span>
+	}
+
+	/**
+	 * Find all sent messages for a sender.
+	 *
+	 * @param sender_id the sender id
+	 * @return the list of all messages sent by the sender
+	 */
+	public List&lt;MessageModel&gt; findSentMessages(int senderId) {
+<span class="fc" id="L302">		List&lt;MessageModel&gt; messages = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L304">			pStatement = connInstance.prepareStatement(GETSENTMESSAGES);</span>
+<span class="fc" id="L305">			pStatement.setInt(1, senderId);</span>
+<span class="fc" id="L306">			pStatement.setBoolean(2, false);</span>
+<span class="fc" id="L307">			results = pStatement.executeQuery();</span>
+<span class="fc bfc" id="L308" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L309">				int id = results.getInt(&quot;id&quot;);</span>
+<span class="fc" id="L310">				String text = results.getString(&quot;text&quot;);</span>
+<span class="fc" id="L311">				int sId = results.getInt(SENDERID);</span>
+<span class="fc" id="L312">				String senderIp = results.getString(SENDERIP);</span>
+<span class="fc" id="L313">				int receiverId = results.getInt(RECEIVERID);</span>
+<span class="fc" id="L314">				String receiverIp = results.getString(RECEIVERIP);</span>
+<span class="fc" id="L315">				Timestamp creationDate = results.getTimestamp(&quot;date&quot;);</span>
+<span class="fc" id="L316">				MessageModel message = new MessageModel(text, sId, senderIp, receiverId, receiverIp, creationDate);</span>
+<span class="fc" id="L317">				message.setId(id);</span>
+<span class="fc" id="L318">				messages.add(message);</span>
+<span class="fc" id="L319">			}</span>
+<span class="fc" id="L320">			pStatement.close();</span>
+<span class="fc" id="L321">			results.close();</span>
+<span class="nc" id="L322">		} catch (SQLException e) {</span>
+<span class="nc" id="L323">			logger.error(&quot;fucked here &quot; + e);</span>
+<span class="fc" id="L324">		}</span>
+<span class="fc" id="L325">		return messages;</span>
+	}
+
+	/**
+	 * Find received messages.
+	 *
+	 * @param receiver_id the receiver id
+	 * @return the list
+	 */
+	public List&lt;MessageModel&gt; findReceivedMessages(int receiverId) {
+<span class="fc" id="L335">		List&lt;MessageModel&gt; messages = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L337">			pStatement = connInstance.prepareStatement(GETRECEIVEDMESSAGES);</span>
+<span class="fc" id="L338">			pStatement.setInt(1, receiverId);</span>
+<span class="fc" id="L339">			pStatement.setBoolean(2, false);</span>
+<span class="fc" id="L340">			results = pStatement.executeQuery();</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L342">				int id = results.getInt(&quot;id&quot;);</span>
+<span class="fc" id="L343">				String text = results.getString(&quot;text&quot;);</span>
+<span class="fc" id="L344">				int senderId = results.getInt(SENDERID);</span>
+<span class="fc" id="L345">				String senderIp = results.getString(SENDERIP);</span>
+<span class="fc" id="L346">				int rId = results.getInt(RECEIVERID);</span>
+<span class="fc" id="L347">				String receiverIp = results.getString(RECEIVERIP);</span>
+<span class="fc" id="L348">				Timestamp creationDate = results.getTimestamp(&quot;date&quot;);</span>
+<span class="fc" id="L349">				MessageModel message = new MessageModel(text, senderId, senderIp, rId, receiverIp, creationDate);</span>
+<span class="fc" id="L350">				message.setId(id);</span>
+<span class="fc" id="L351">				messages.add(message);</span>
+<span class="fc" id="L352">			}</span>
+<span class="fc" id="L353">			pStatement.close();</span>
+<span class="fc" id="L354">			results.close();</span>
+<span class="nc" id="L355">		} catch (SQLException e) {</span>
+<span class="nc" id="L356">			logger.error(e);</span>
+<span class="fc" id="L357">		}</span>
+<span class="fc" id="L358">		return messages;</span>
+	}
+
+	/**
+	 * Find message conversation.
+	 *
+	 * @param sender_id   the sender id
+	 * @param receiver_id the receiver id
+	 * @return the list
+	 */
+	public List&lt;MessageModel&gt; findMessageConversation(int senderId, int receiverId) {
+<span class="fc" id="L369">		List&lt;MessageModel&gt; messages = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L371">			pStatement = connInstance.prepareStatement(GETMESSAGECONVERSATION);</span>
+<span class="fc" id="L372">			pStatement.setInt(1, senderId);</span>
+<span class="fc" id="L373">			pStatement.setInt(2, receiverId);</span>
+<span class="fc" id="L374">			results = pStatement.executeQuery();</span>
+<span class="fc bfc" id="L375" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L376">				int id = results.getInt(&quot;id&quot;);</span>
+<span class="fc" id="L377">				String text = results.getString(&quot;text&quot;);</span>
+<span class="fc" id="L378">				int sId = results.getInt(SENDERID);</span>
+<span class="fc" id="L379">				String senderIp = results.getString(SENDERIP);</span>
+<span class="fc" id="L380">				int rId = results.getInt(RECEIVERID);</span>
+<span class="fc" id="L381">				String receiverIp = results.getString(RECEIVERIP);</span>
+<span class="fc" id="L382">				Timestamp creationDate = results.getTimestamp(&quot;date&quot;);</span>
+<span class="fc" id="L383">				MessageModel message = new MessageModel(text, sId, senderIp, rId, receiverIp, creationDate);</span>
+<span class="fc" id="L384">				message.setId(id);</span>
+<span class="fc" id="L385">				messages.add(message);</span>
+<span class="fc" id="L386">			}</span>
+<span class="fc" id="L387">			pStatement.close();</span>
+<span class="fc" id="L388">			results.close();</span>
+<span class="nc" id="L389">		} catch (SQLException e) {</span>
+<span class="nc" id="L390">			logger.error(e);</span>
+<span class="fc" id="L391">		}</span>
+<span class="fc" id="L392">		return messages;</span>
+	}
+
+	/**
+	 * Gets the conversation.
+	 *
+	 * @param userId the user id
+	 * @param start  the start
+	 * @param end    the end
+	 * @return the conversation
+	 */
+	public List&lt;MessageModel&gt; getConversation(int userId, Timestamp start, Timestamp end) {
+<span class="fc" id="L404">		List&lt;MessageModel&gt; messages = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L406">			pStatement = connInstance.prepareStatement(GETMESSAGELOG);</span>
+<span class="fc" id="L407">			pStatement.setInt(1, userId);</span>
+<span class="fc" id="L408">			pStatement.setInt(2, userId);</span>
+<span class="fc" id="L409">			pStatement.setTimestamp(3, start);</span>
+<span class="fc" id="L410">			pStatement.setTimestamp(4, end);</span>
+
+<span class="fc" id="L412">			results = pStatement.executeQuery();</span>
+<span class="fc bfc" id="L413" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L414">				int id = results.getInt(&quot;id&quot;);</span>
+<span class="fc" id="L415">				String text = results.getString(&quot;text&quot;);</span>
+<span class="fc" id="L416">				int senderId = results.getInt(SENDERID);</span>
+<span class="fc" id="L417">				String senderIp = results.getString(SENDERIP);</span>
+<span class="fc" id="L418">				int receiverId = results.getInt(RECEIVERID);</span>
+<span class="fc" id="L419">				String receiverIp = results.getString(RECEIVERIP);</span>
+<span class="fc" id="L420">				Timestamp creationDate = results.getTimestamp(&quot;date&quot;);</span>
+<span class="fc" id="L421">				MessageModel message = new MessageModel(text, senderId, senderIp, receiverId, receiverIp, creationDate);</span>
+<span class="fc" id="L422">				message.setId(id);</span>
+<span class="fc" id="L423">				messages.add(message);</span>
+<span class="fc" id="L424">			}</span>
+<span class="fc" id="L425">			pStatement.close();</span>
+<span class="fc" id="L426">			results.close();</span>
+<span class="nc" id="L427">		} catch (SQLException e) {</span>
+<span class="nc" id="L428">			logger.error(e);</span>
+<span class="fc" id="L429">		}</span>
+<span class="fc" id="L430">		return messages;</span>
+	}
+
+	/**
+	 * Update sender ip.
+	 *
+	 * @param id        the id
+	 * @param ipAddress the ip address
+	 * @return the int
+	 */
+	public int updateSenderIp(int id, String ipAddress) {
+<span class="fc" id="L441">		int status = -1;</span>
+		try {
+<span class="fc" id="L443">			pStatement = connInstance.prepareStatement(UPDATESENDERIP);</span>
+<span class="fc" id="L444">			pStatement.setString(1, ipAddress);</span>
+<span class="fc" id="L445">			pStatement.setInt(2, id);</span>
+<span class="fc" id="L446">			status = pStatement.executeUpdate();</span>
+<span class="fc" id="L447">			pStatement.close();</span>
+<span class="nc" id="L448">		} catch (SQLException e) {</span>
+<span class="nc" id="L449">			logger.error(e);</span>
+<span class="fc" id="L450">		}</span>
+<span class="fc" id="L451">		return status;</span>
+	}
+
+	/**
+	 * Update receiver ip.
+	 *
+	 * @param id        the id
+	 * @param ipAddress the ip address
+	 * @return the int
+	 */
+	public int updateReceiverIp(int id, String ipAddress) {
+<span class="fc" id="L462">		int status = -1;</span>
+		try {
+<span class="fc" id="L464">			pStatement = connInstance.prepareStatement(UPDATERECEIVERIP);</span>
+<span class="fc" id="L465">			pStatement.setString(1, ipAddress);</span>
+<span class="fc" id="L466">			pStatement.setInt(2, id);</span>
+<span class="fc" id="L467">			status = pStatement.executeUpdate();</span>
+<span class="fc" id="L468">			pStatement.close();</span>
+<span class="nc" id="L469">		} catch (SQLException e) {</span>
+<span class="nc" id="L470">			logger.error(e);</span>
+<span class="fc" id="L471">		}</span>
+<span class="fc" id="L472">		return status;</span>
+	}
+
+	/**
+	 * Recall message by id.
+	 *
+	 * @param messageId      the message id
+	 * @param senderUsername the sender username
+	 * @return true, if successful
+	 * @author Karan Tyagi
+	 */
+	public boolean recallById(int messageId, String senderUsername) {
+<span class="pc bpc" id="L484" title="1 of 4 branches missed.">		return (setMessageDelivery(messageId, true) == 1 &amp;&amp; setMessageRecallStatus(messageId, true) == 1);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

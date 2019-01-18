@@ -1,0 +1,543 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClientRunnable.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im.server</a> &gt; <span class="el_source">ClientRunnable.java</span></div><h1>ClientRunnable.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im.server;
+
+import java.io.IOException;
+import java.nio.channels.SocketChannel;
+import java.util.List;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledFuture;
+
+import edu.northeastern.ccs.im.Message;
+import edu.northeastern.ccs.im.PrintNetNB;
+import edu.northeastern.ccs.im.ScanNetNB;
+import edu.northeastern.ccs.im.models.User;
+import edu.northeastern.ccs.db.services.UserService;
+import edu.northeastern.ccs.im.services.CommandService;
+import edu.northeastern.ccs.slack.Notification;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+/**
+ * Instances of this class handle all of the incoming communication from a
+ * single IM client. Instances are created when the client signs-on with the
+ * server. After instantiation, it is executed periodically on one of the
+ * threads from the thread pool and will stop being run only when the client
+ * signs off.
+ * 
+ * This work is licensed under the Creative Commons Attribution-ShareAlike 4.0
+ * International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-sa/4.0/. It is based on work
+ * originally written by Matthew Hertz and has been adapted for use in a class
+ * assignment at Northeastern University.
+ * 
+ * @version 1.3
+ */
+public class ClientRunnable implements Runnable {
+
+<span class="fc" id="L41">	private static final Logger logger = LogManager.getLogger(ClientRunnable.class);</span>
+
+	/**
+	 * Number of milliseconds that special responses are delayed before being sent.
+	 */
+	private static final int SPECIAL_RESPONSE_DELAY_IN_MS = 5000;
+
+	/**
+	 * Number of milliseconds after which we terminate a client due to inactivity.
+	 * This is currently equal to 5 hours.
+	 */
+	private static final long TERMINATE_AFTER_INACTIVE_BUT_LOGGEDIN_IN_MS = 18000000;
+
+	/**
+	 * Number of milliseconds after which we terminate a client due to inactivity.
+	 * This is currently equal to 5 hours.
+	 */
+	private static final long TERMINATE_AFTER_INACTIVE_INITIAL_IN_MS = 600000;
+
+	/**
+	 * Time at which we should send a response to the (private) messages we were
+	 * sent.
+	 */
+	private Date sendResponses;
+
+	/** Time at which the client should be terminated due to lack of activity. */
+	private GregorianCalendar terminateInactivity;
+
+	/** Queue of special Messages that we must send immediately. */
+	private Queue&lt;Message&gt; immediateResponse;
+
+	/** Queue of special Messages that we will need to send. */
+	private Queue&lt;Message&gt; specialResponse;
+
+	/** Socket over which the conversation with the single client occurs. */
+	private final SocketChannel socket;
+
+	/**
+	 * Utility class which we will use to receive communication from this client.
+	 */
+	private ScanNetNB input;
+
+	/** Utility class which we will use to send communication to this client. */
+	private PrintNetNB output;
+
+	/** The user for whom we use this ClientRunnable to communicate. */
+	private User user;
+
+	/**
+	 * Whether this client has been initialized, set its user name, and is ready to
+	 * receive messages.
+	 */
+	private boolean initialized;
+
+	/**
+	 * The future that is used to schedule the client for execution in the thread
+	 * pool.
+	 */
+	private ScheduledFuture&lt;ClientRunnable&gt; runnableMe;
+
+	/** Collection of messages queued up to be sent to this client. */
+	private Queue&lt;Message&gt; waitingList;
+
+	/**
+	 * Create a new thread with which we will communicate with this single client.
+	 * 
+	 * @param client SocketChannel over which we will communicate with this new
+	 *               client
+	 * @throws IOException Exception thrown if we have trouble completing this
+	 *                     connection
+	 */
+<span class="fc" id="L112">	public ClientRunnable(SocketChannel client) throws IOException {</span>
+		// Set up the SocketChannel over which we will communicate.
+<span class="fc" id="L114">		socket = client;</span>
+<span class="fc" id="L115">		socket.configureBlocking(false);</span>
+		// Create the class we will use to receive input
+<span class="fc" id="L117">		input = new ScanNetNB(socket);</span>
+		// Create the class we will use to send output
+<span class="fc" id="L119">		output = new PrintNetNB(socket);</span>
+
+<span class="fc" id="L121">		user = new User();</span>
+		// Mark that we are not initialized
+<span class="fc" id="L123">		initialized = false;</span>
+		// Create our queue of special messages
+<span class="fc" id="L125">		specialResponse = new LinkedList&lt;&gt;();</span>
+		// Create the queue of messages to be sent
+<span class="fc" id="L127">		waitingList = new ConcurrentLinkedQueue&lt;&gt;();</span>
+		// Create our queue of message we must respond to immediately
+<span class="fc" id="L129">		immediateResponse = new LinkedList&lt;&gt;();</span>
+		// Mark that the client is active now and start the timer until we
+		// terminate for inactivity.
+<span class="fc" id="L132">		terminateInactivity = new GregorianCalendar();</span>
+<span class="fc" id="L133">		terminateInactivity</span>
+<span class="fc" id="L134">				.setTimeInMillis(terminateInactivity.getTimeInMillis() + TERMINATE_AFTER_INACTIVE_INITIAL_IN_MS);</span>
+<span class="fc" id="L135">	}</span>
+
+	public String getIpAddressOfClient() {
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">		if (isInitialized()){</span>
+			try {
+<span class="fc" id="L140">				return socket.getRemoteAddress().toString();</span>
+<span class="fc" id="L141">			} catch (Exception e) {</span>
+<span class="fc" id="L142">				logger.info(e);</span>
+			}
+		}
+<span class="fc" id="L145">		return &quot;&quot;;</span>
+	}
+
+	/**
+	 * Determines if this is a special message which we handle differently. It will
+	 * handle the messages and return true if msg is &quot;special.&quot; Otherwise, it
+	 * returns false.
+	 * 
+	 * @param msg Message in which we are interested.
+	 * @return True if msg is &quot;special&quot;; false otherwise.
+	 */
+	private boolean broadcastMessageIsSpecial(Message msg) {
+<span class="fc" id="L157">		boolean result = false;</span>
+<span class="fc" id="L158">		String text = msg.getText();</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">		if (text != null) {</span>
+<span class="fc" id="L160">			List&lt;Message&gt; responses = ServerConstants.getBroadcastResponses(text);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">			if (responses != null) {</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">				for (Message current : responses) {</span>
+<span class="fc" id="L163">					handleSpecial(current);</span>
+<span class="fc" id="L164">				}</span>
+<span class="fc" id="L165">				result = true;</span>
+			}
+		}
+<span class="fc" id="L168">		return result;</span>
+	}
+
+	/**
+	 * Print the user profile
+	 */
+	public String printProfile() {
+<span class="fc" id="L175">		StringBuilder str = new StringBuilder();</span>
+<span class="fc" id="L176">		str.append(&quot;------ Profile ------\n&quot; + &quot;Username  : &quot; + this.user.getUsername() + &quot;\n&quot; + &quot;FirstName :&quot;</span>
+<span class="fc" id="L177">				+ this.user.getFirstName() + &quot;\n&quot; + &quot;LastName  : &quot; + this.user.getLastName() + &quot;\n&quot; + &quot;User ID :&quot;</span>
+<span class="fc" id="L178">				+ this.user.getUserId());</span>
+<span class="fc" id="L179">		return str.toString();</span>
+	}
+
+	/**
+	 * Check to see for an initialization attempt and process the message sent.
+	 * @throws IOException 
+	 * 
+	 * @throws Exception
+	 */
+	private void checkForInitialization() {
+		// Check if there are any input messages to read
+<span class="fc bfc" id="L190" title="All 2 branches covered.">		if (input.hasNextMessage()) {</span>
+
+			// If a message exists, try to use it to initialize the connection
+<span class="fc" id="L193">			Message msg = input.nextMessage();</span>
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">			if (setUserName(msg.getName())) {</span>
+				// Update the time until we terminate this client due to inactivity.
+<span class="fc" id="L196">				terminateInactivity.setTimeInMillis(</span>
+<span class="fc" id="L197">						new GregorianCalendar().getTimeInMillis() + TERMINATE_AFTER_INACTIVE_INITIAL_IN_MS);</span>
+				// Set that the client is initialized.
+<span class="fc" id="L199">				initialized = true;</span>
+				// display default client profile everytime the User is initialized
+				// if a user is not already written to the file, write it to a file
+
+<span class="fc bfc" id="L203" title="All 2 branches covered.">				if (UserService.checkIfUserExists(this.user.getUsername())) {</span>
+<span class="fc" id="L204">					this.user = UserService.getUserData(this.user.getUsername());</span>
+				}
+<span class="fc" id="L206">				loginWorkflow(this.user, msg.getText());</span>
+			} else {
+<span class="nc" id="L208">				initialized = false;</span>
+			}
+		}
+<span class="fc" id="L211">	}</span>
+
+	/*
+	 * This utility function checks if a user exists and if the user exists, check if 
+	 * the password provided is correct or not, if a user is a new user, it registers 
+	 * the user with new username and provided password
+	 * @param : Integer : UserId, String :Password
+	 * 
+	 * @return : true : All is good, keep the connection false : User is malicious
+	 */
+	private boolean loginWorkflow(User user, String password) {
+<span class="fc bfc" id="L222" title="All 2 branches covered.">		if (UserService.checkIfUserExists(user.getUsername())) {</span>
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">			if (UserService.validatePassword(user.getUsername(), password)) {</span>
+<span class="fc" id="L224">				Message loginMessage = Message.makeCommandMessage(user.getUsername(), &quot;You have successfully logged in.&quot;);</span>
+<span class="fc" id="L225">				enqueueMessage(loginMessage);</span>
+<span class="fc" id="L226">				CommandService.getInstance().processCommand(this, &quot;/help&quot;);</span>
+<span class="fc" id="L227">				CommandService.getInstance().processCommand(this, &quot;/displayunreadmsgs&quot;);</span>
+<span class="fc" id="L228">				return true;</span>
+			}
+			else {
+<span class="nc" id="L231">				Message quitMsg = Message.makeQuitMessage(user.getUsername(), &quot;Invalid Password! Come back later&quot;);</span>
+<span class="nc" id="L232">				logger.info(&quot;A malicious user is trying to enter, breaking the connection for &quot; + user.getUsername());</span>
+<span class="nc" id="L233">				Notification.sendNotificationToSlack(&quot;SECURITY CONCERN | LEVEL : MED | MSG - User entered invalid password &quot;);</span>
+<span class="nc" id="L234">				enqueueMessage(quitMsg);</span>
+<span class="nc" id="L235">				return false;</span>
+			}
+		} else {
+<span class="fc" id="L238">			user.setPassword(password);</span>
+<span class="fc" id="L239">			logger.info(&quot;New user Detected, registering the user&quot; + user.getUsername());</span>
+<span class="fc" id="L240">			Notification.sendNotificationToSlack(&quot;SECURITY CONCERN | LEVEL : LOW | MSG - New User : &quot;+ user.getUsername()+&quot; registered to the system&quot;);</span>
+<span class="fc" id="L241">			UserService.createUser(user.getUsername(), user.getPassword());</span>
+<span class="fc" id="L242">			printProfile();</span>
+<span class="fc" id="L243">			Message loginMessage = Message.makeCommandMessage(user.getUsername(),&quot;User successfully registered&quot;);</span>
+<span class="fc" id="L244">			enqueueMessage(loginMessage);</span>
+<span class="fc" id="L245">			CommandService.getInstance().processCommand(this, &quot;/help&quot;);</span>
+<span class="fc" id="L246">			return true;</span>
+		}
+	}
+
+	/**
+	 * Process one of the special responses
+	 * 
+	 * @param msg Message to add to the list of special responses.
+	 */
+	private void handleSpecial(Message msg) {
+<span class="fc bfc" id="L256" title="All 2 branches covered.">		if (specialResponse.isEmpty()) {</span>
+<span class="fc" id="L257">			sendResponses = new Date();</span>
+<span class="fc" id="L258">			sendResponses.setTime(sendResponses.getTime() + SPECIAL_RESPONSE_DELAY_IN_MS);</span>
+		}
+<span class="fc" id="L260">		specialResponse.add(msg);</span>
+<span class="fc" id="L261">	}</span>
+
+	/**
+	 * Check if the message is properly formed. At the moment, this means checking
+	 * that the identifier is set properly.
+	 * 
+	 * @param msg Message to be checked
+	 * @return True if message is correct; false otherwise
+	 */
+	private boolean messageChecks(Message msg) {
+		// Check that the message name matches.
+<span class="fc bfc" id="L272" title="All 4 branches covered.">		return (msg.getName() != null) &amp;&amp; (msg.getName().compareToIgnoreCase(getName()) == 0);</span>
+	}
+
+	/**
+	 * Immediately send this message to the client. This returns if we were
+	 * successful or not in our attempt to send the message.
+	 * 
+	 * @param message Message to be sent immediately.
+	 * @return True if we sent the message successfully; false otherwise.
+	 */
+	public boolean sendMessage(Message message) {
+<span class="fc" id="L283">		logger.info(&quot;\t&quot; + message);</span>
+<span class="fc" id="L284">		return output.print(message);</span>
+	}
+
+	/**
+	 * Try allowing this user to set his/her user name to the given username.
+	 * 
+	 * @param userName The new value to which we will try to set userName.
+	 * @return True if the username is deemed acceptable; false otherwise
+	 */
+	private boolean setUserName(String userName) {
+		// Now make sure this name is legal.
+<span class="fc bfc" id="L295" title="All 2 branches covered.">		if (userName != null) {</span>
+			// Optimistically set this users ID number.
+<span class="fc" id="L297">			setName(userName);</span>
+<span class="fc" id="L298">			user.setUserId(user.hashCode());</span>
+<span class="fc" id="L299">			return true;</span>
+		}
+		// Clear this name; we cannot use it. *sigh*
+<span class="fc" id="L302">		user.setUserId(-1);</span>
+<span class="fc" id="L303">		return false;</span>
+	}
+
+	/**
+	 * Add the given message to this client to the queue of message to be sent to
+	 * the client.
+	 * 
+	 * @param message Complete message to be sent.
+	 */
+	public void enqueueMessage(Message message) {
+<span class="fc" id="L313">		waitingList.add(message);</span>
+<span class="fc" id="L314">	}</span>
+
+	/**
+	 * Get the name of the user for which this ClientRunnable was created.
+	 * 
+	 * @return Returns the name of this client.
+	 */
+	public String getName() {
+<span class="fc" id="L322">		return this.user.getUsername();</span>
+	}
+
+	/**
+	 * Set the name of the user for which this ClientRunnable was created.
+	 * 
+	 * @param name The name for which this ClientRunnable.
+	 */
+	public void setName(String name) {
+<span class="fc" id="L331">		this.user.setUsername(name);</span>
+<span class="fc" id="L332">	}</span>
+
+	/**
+	 * Gets the name of the user for which this ClientRunnable was created.
+	 * 
+	 * @return Returns the current value of userName.
+	 */
+	public int getUserId() {
+<span class="fc" id="L340">		return this.user.getUserId();</span>
+	}
+
+	/**
+	 * Return if this thread has completed the initialization process with its
+	 * client and is read to receive messages.
+	 * 
+	 * @return True if this thread's client should be considered; false otherwise.
+	 */
+	public boolean isInitialized() {
+<span class="fc" id="L350">		return initialized;</span>
+	}
+
+	/**
+	 * Perform the periodic actions needed to work with this client.
+	 * 
+	 * @see java.lang.Thread#run()
+	 */
+	public void run() {
+<span class="fc" id="L359">		boolean terminate = false;</span>
+		// The client must be initialized before we can do anything else
+<span class="fc bfc" id="L361" title="All 2 branches covered.">		if (!initialized) {</span>
+			try {
+<span class="fc" id="L363">				checkForInitialization();</span>
+<span class="fc" id="L364">			} catch (Exception e) {</span>
+<span class="fc" id="L365">				logger.error(e);</span>
+<span class="fc" id="L366">			}</span>
+		} else {
+			try {
+<span class="fc" id="L369">				terminate = checkAndProcessMessage(terminate);</span>
+<span class="fc" id="L370">				terminate = checkClientGoodAndSendMessage(terminate);</span>
+<span class="fc" id="L371">			} catch (Exception e) {</span>
+<span class="fc" id="L372">				logger.error(e);</span>
+			} finally {
+				// When it is appropriate, terminate the current client.
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">				if (terminate) {</span>
+					try {
+<span class="nc" id="L377">						terminateClient();</span>
+<span class="nc" id="L378">					} catch (IOException e) {</span>
+<span class="nc" id="L379">						logger.info(e);</span>
+<span class="nc" id="L380">					}</span>
+				}
+			}
+		}
+		// Finally, check if this client have been inactive for too long and,
+		// when they have, terminate
+		// the client.
+<span class="pc bpc" id="L387" title="2 of 4 branches missed.">		if (!terminate &amp;&amp; terminateInactivity.before(new GregorianCalendar())) {</span>
+<span class="nc" id="L388">			logger.error(&quot;Timing out or forcing off a user &quot; + this.user.getUsername());</span>
+			try {
+<span class="nc" id="L390">				terminateClient();</span>
+<span class="nc" id="L391">			} catch (IOException e) {</span>
+<span class="nc" id="L392">				logger.info(e);</span>
+<span class="nc" id="L393">			}</span>
+		}
+<span class="fc" id="L395">	}</span>
+
+	private boolean checkClientGoodAndSendMessage(boolean terminate)
+	{
+<span class="pc bpc" id="L399" title="1 of 2 branches missed.">		if (!immediateResponse.isEmpty()) {</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">			while (!immediateResponse.isEmpty()) {</span>
+<span class="nc" id="L401">				sendMessage(immediateResponse.remove());</span>
+			}
+		}
+
+		// Check to make sure we have a client to send to.
+<span class="fc" id="L406">		boolean processSpecial = checkWeHaveAClient();</span>
+<span class="pc bpc" id="L407" title="1 of 2 branches missed.">		boolean keepAlive = !processSpecial;</span>
+		// Send the responses to any special messages we were asked.
+<span class="pc bpc" id="L409" title="1 of 2 branches missed.">		if (processSpecial) {</span>
+			// Send all of the messages and check that we get valid
+			// responses.
+<span class="nc bnc" id="L412" title="All 2 branches missed.">			while (!specialResponse.isEmpty()) {</span>
+<span class="nc" id="L413">				keepAlive |= sendMessage(specialResponse.remove());</span>
+			}
+		}
+<span class="fc bfc" id="L416" title="All 2 branches covered.">		if (!waitingList.isEmpty()) {</span>
+<span class="pc bpc" id="L417" title="1 of 2 branches missed.">			if (!processSpecial) {</span>
+<span class="fc" id="L418">				keepAlive = false;</span>
+			}
+			// Send out all of the message that have been added to the
+			// queue.
+			do {
+<span class="fc" id="L423">				Message msg = waitingList.remove();</span>
+<span class="fc" id="L424">				boolean sentGood = sendMessage(msg);</span>
+<span class="fc" id="L425">				keepAlive |= sentGood;</span>
+<span class="fc bfc" id="L426" title="All 2 branches covered.">			} while (!waitingList.isEmpty());</span>
+		}
+<span class="pc bpc" id="L428" title="1 of 2 branches missed.">		terminate |= !keepAlive;</span>
+		
+<span class="fc" id="L430">		return terminate;</span>
+	}
+	
+	
+	private boolean checkWeHaveAClient()
+	{
+<span class="pc bpc" id="L436" title="3 of 4 branches missed.">		return !specialResponse.isEmpty()</span>
+<span class="pc bnc" id="L437" title="All 4 branches missed.">				&amp;&amp; ((!initialized) || (!waitingList.isEmpty()) || sendResponses.before(new Date()));</span>
+	}
+	
+	private boolean checkAndProcessMessage(boolean terminate)
+	{
+		// Client has already been initialized, so we should first check
+		// if there are any input
+		// messages.
+<span class="fc bfc" id="L445" title="All 2 branches covered.">		if (input.hasNextMessage()) {</span>
+			// Get the next message
+<span class="fc" id="L447">			Message msg = input.nextMessage();</span>
+
+			// Update the time until we terminate the client for
+			// inactivity.
+<span class="fc" id="L451">			terminateInactivity.setTimeInMillis(</span>
+<span class="fc" id="L452">					new GregorianCalendar().getTimeInMillis() + TERMINATE_AFTER_INACTIVE_BUT_LOGGEDIN_IN_MS);</span>
+			// If the message is a broadcast message, send it out
+<span class="pc bpc" id="L454" title="1 of 2 branches missed.">			if (msg.isDisplayMessage()) {</span>
+<span class="fc" id="L455">				processDisplayMessage(msg);</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">			} else if (msg.isCommandMessage()) {</span>
+<span class="nc" id="L457">				CommandService.getInstance().processCommand(this, msg.getText());</span>
+<span class="nc bnc" id="L458" title="All 2 branches missed.">			} else if (msg.isPrivateMessage()) {</span>
+<span class="nc" id="L459">				Prattle.sendPrivateMessasge(msg);</span>
+<span class="nc bnc" id="L460" title="All 2 branches missed.">			}else if(msg.isGroupMessage()) {</span>
+<span class="nc" id="L461">				Prattle.sendGroupMessage(msg);</span>
+<span class="nc bnc" id="L462" title="All 2 branches missed.">			} else if (msg.terminate()) {</span>
+				// Stop sending the poor client message.
+<span class="nc" id="L464">				terminate = true;</span>
+				// Reply with a quit message.
+<span class="nc" id="L466">				enqueueMessage(Message.makeQuitMessage(this.user.getUsername()));</span>
+			}
+			// Otherwise, ignore it (for now).
+		}
+		
+<span class="fc" id="L471">		return terminate;</span>
+	}
+	
+	private void processDisplayMessage(Message msg)
+	{
+		// Check if the message is legal formatted
+<span class="pc bpc" id="L477" title="1 of 2 branches missed.">		if (messageChecks(msg)) {</span>
+			// Check for our &quot;special messages&quot;
+<span class="pc bpc" id="L479" title="2 of 4 branches missed.">			if ((msg.isBroadcastMessage()) &amp;&amp; (!broadcastMessageIsSpecial(msg))) {</span>
+				// Check for our &quot;special messages&quot;
+<span class="pc bpc" id="L481" title="1 of 2 branches missed.">				if ((msg.getText() != null)</span>
+<span class="pc bpc" id="L482" title="1 of 2 branches missed.">						&amp;&amp; (msg.getText().compareToIgnoreCase(ServerConstants.BOMB_TEXT) == 0)) {</span>
+<span class="nc" id="L483">					initialized = false;</span>
+<span class="nc" id="L484">					Prattle.broadcastMessage(Message.makeQuitMessage(this.user.getUsername()));</span>
+				} else {
+<span class="fc" id="L486">					Prattle.broadcastMessage(msg);</span>
+				}
+			}
+		}
+		else {
+
+			Message sendMsg;
+<span class="nc" id="L493">			sendMsg = Message.makeBroadcastMessage(ServerConstants.BOUNCER_ID,</span>
+					&quot;Last message was rejected because it specified an incorrect user name.&quot;);
+<span class="nc" id="L495">			enqueueMessage(sendMsg);</span>
+		}
+<span class="fc" id="L497">	}</span>
+	
+	/**
+	 * Store the object used by this client runnable to control when it is scheduled
+	 * for execution in the thread pool.
+	 * 
+	 * @param future Instance controlling when the runnable is executed from within
+	 *               the thread pool.
+	 */
+	public void setFuture(ScheduledFuture&lt;ClientRunnable&gt; future) {
+<span class="fc" id="L507">		runnableMe = future;</span>
+<span class="fc" id="L508">	}</span>
+
+	/**
+	 * Terminate a client that we wish to remove. This termination could happen at
+	 * the client's request or due to system need.
+	 * @throws IOException 
+	 */
+	public void terminateClient() throws IOException {
+		try {
+			// Once the communication is done, close this connection.
+<span class="fc" id="L518">			input.close();</span>
+<span class="fc" id="L519">			socket.close();</span>
+<span class="nc" id="L520">		} catch (IOException e) {</span>
+			// If we have an IOException, ignore the problem
+<span class="nc" id="L522">			logger.error(e);</span>
+<span class="fc" id="L523">		} </span>
+<span class="fc" id="L524">		Prattle.removeClient(this);</span>
+		// And remove the client from our client pool.
+<span class="nc" id="L526">		runnableMe.cancel(false);</span>
+<span class="nc" id="L527">	}</span>
+	
+	public Queue&lt;Message&gt; getWaitingList() {
+<span class="fc" id="L530">		return new LinkedList&lt;&gt;(waitingList);</span>
+	}
+
+	/**
+	 * Get the user for which this ClientRunnable was created.
+	 * 
+	 * @return Returns the user.
+	 */
+	public User getUser() {
+<span class="fc" id="L539">		return this.user;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

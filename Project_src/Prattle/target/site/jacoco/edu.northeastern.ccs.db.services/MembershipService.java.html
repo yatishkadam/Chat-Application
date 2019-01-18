@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MembershipService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.db.services</a> &gt; <span class="el_source">MembershipService.java</span></div><h1>MembershipService.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.db.services;
+
+import java.util.List;
+
+import edu.northeastern.ccs.db.daos.MembershipDao;
+
+public class MembershipService {
+	
+<span class="fc" id="L9">	private static MembershipDao dao = MembershipDao.getInstance();</span>
+
+	private MembershipService() {
+	}
+	
+	public static boolean addAdmin(String username, String groupName) {
+<span class="fc bfc" id="L15" title="All 2 branches covered.">		return (dao.createAdmin(username, groupName) == 1);</span>
+	}
+	
+	public static boolean isAdmin(String username, String groupName) {
+<span class="fc" id="L19">		return dao.findAdminForGroup(username, groupName);</span>
+	}
+	
+	// -1 = already member
+	// 0 = query failed
+	// 1 = SUCCESS
+	public static int addMember(String username, String groupName) {
+		
+<span class="fc bfc" id="L27" title="All 2 branches covered.">		if(!dao.isMember(username, groupName)) {	</span>
+<span class="fc" id="L28">			return dao.createMembership(username, groupName);</span>
+		}
+<span class="fc" id="L30">		return -1;</span>
+	}
+	
+	public static boolean removeMember(String username, String groupName) {
+<span class="fc bfc" id="L34" title="All 2 branches covered.">		return (dao.deleteMembership(username, groupName) == 1);</span>
+	}
+	
+	public static List&lt;String&gt; listAdmins(String groupName){
+<span class="fc" id="L38">		return dao.findAllAdminsForGroup(groupName);</span>
+	}
+	
+	public static List&lt;String&gt; listMembers(String groupName){
+<span class="fc" id="L42">		return dao.findAllUsersForGroup(groupName);</span>
+	}
+	
+	// finds all groups for a given user
+	public static List&lt;String&gt; getUserGroups(String username) {
+<span class="fc" id="L47">		return dao.findAllGroupsForUser(username);</span>
+	}
+
+	public static boolean isMember(String username, String groupName) {
+<span class="fc" id="L51">		return dao.isMember(username, groupName);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

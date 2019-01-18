@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerConstants.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im.server</a> &gt; <span class="el_source">ServerConstants.java</span></div><h1>ServerConstants.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im.server;
+
+import java.util.*;
+
+import edu.northeastern.ccs.im.Message;
+
+/**
+ * A network server that communicates with IM clients that connect to it. This
+ * version of the server spawns a new thread to handle each client that connects
+ * to it. At this point, messages are broadcast to all of the other clients. 
+ * It does not send a response when the user has gone off-line.
+ * 
+ * This work is licensed under the Creative Commons Attribution-ShareAlike 4.0
+ * International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-sa/4.0/. It is based on work
+ * originally written by Matthew Hertz and has been adapted for use in a class
+ * assignment at Northeastern University.
+ * 
+ * @version 1.3
+ */
+public class ServerConstants {
+
+	/** The port number to listen on. */
+	protected static final int PORT = 8613;
+
+	/** Name of the private user who responds to interesting queries. */
+	protected static final String NIST_NAME = &quot;NIST&quot;;
+
+	/** Name of the private user who broadcasts interesting responses. */
+	protected static final String SERVER_NAME = &quot;Prattle&quot;;
+
+	/** Name of the private user who handles bad requests. */
+	protected static final String BOUNCER_NAME = &quot;Bouncer&quot;;
+
+	/** Private user who handles bad requests. */
+	protected static final String BOUNCER_ID = BOUNCER_NAME;
+
+	/** Private user who responds to interesting queries. */
+	protected static final String NIST_ID = NIST_NAME;
+
+	/**
+	 * Name of a user that this server will never accept (since, by convention, his
+	 * name must be my name too).
+	 */
+	protected static final String ALWAYS_REJECT_USER_NAME = &quot;JohnJacobJingleheimerSchmidt&quot;;
+
+	/**
+	 * Name of a user that this server will always accept (since, by convention,
+	 * many people may have this name).
+	 */
+	protected static final String ALWAYS_ALLOW_USER_NAME = &quot;Anonymous&quot;;
+
+	/** Command to log all the other users off. */
+	protected static final String BOMB_TEXT = &quot;Prattle says everyone log off&quot;;
+
+	/**
+	 * Message sent in the early assignments when the user tries to send a message
+	 * before they login.
+	 */
+<span class="fc" id="L60">	protected static final Message REJECT_USER_MESSAGE = Message.makeBroadcastMessage(BOUNCER_ID,</span>
+			&quot;You must login before you can send a message&quot;);
+
+	/** Command to say hello. */
+	protected static final String HELLO_COMMAND = &quot;Hello&quot;;
+
+	/** Command to ask about how things are going. */
+	protected static final String QUERY_COMMAND = &quot;How are you?&quot;;
+
+	/** Command that showing the professor is hip (or is that hep?). */
+	protected static final String COOL_COMMAND = &quot;WTF&quot;;
+
+	/** Command for impatient users */
+	protected static final String IMPATIENT_COMMAND = &quot;What time is it Mr. Fox?&quot;;
+
+	/** Message to find the date. */
+	protected static final String DATE_COMMAND = &quot;What is the date?&quot;;
+
+	/** Message to find the time. */
+	protected static final String TIME_COMMAND = &quot;What time is it?&quot;;
+
+	private static HashMap&lt;String, ArrayList&lt;String&gt;&gt; responses;
+
+<span class="nc" id="L83">	ServerConstants(){}</span>
+
+	static {
+<span class="fc" id="L86">		ArrayList&lt;String&gt; list = null;</span>
+<span class="fc" id="L87">		responses = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L89">		list = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L90">		list.add(&quot;Hello.  How are you?&quot;);</span>
+<span class="fc" id="L91">		list.add(&quot;I can communicate with you to test your code.&quot;);</span>
+<span class="fc" id="L92">		responses.put(HELLO_COMMAND, list);</span>
+
+<span class="fc" id="L94">		list = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L95">		list.add(&quot;Why are you asking me this?&quot;);</span>
+<span class="fc" id="L96">		list.add(&quot;I am a computer program. I run.&quot;);</span>
+<span class="fc" id="L97">		responses.put(QUERY_COMMAND, list);</span>
+
+<span class="fc" id="L99">		list = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L100">		list.add(&quot;OMG ROFL TTYL&quot;);</span>
+<span class="fc" id="L101">		responses.put(COOL_COMMAND, list);</span>
+
+<span class="fc" id="L103">		list = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L104">		list.add(&quot;The time is now&quot;);</span>
+<span class="fc" id="L105">		responses.put(IMPATIENT_COMMAND, list);</span>
+<span class="fc" id="L106">	}</span>
+
+	/**
+	 * Return a list of messages for each response.
+	 * 
+	 * @param message The message that was sent.
+	 * @return a list of messages if it exists, or null
+	 */
+	public static List&lt;Message&gt; getBroadcastResponses(String message) {
+<span class="fc" id="L115">		List&lt;Message&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (message.compareToIgnoreCase(DATE_COMMAND) == 0) {</span>
+<span class="fc" id="L117">			GregorianCalendar cal = new GregorianCalendar();</span>
+<span class="fc" id="L118">			Message dateMessage = Message.makeBroadcastMessage(ServerConstants.NIST_ID,</span>
+<span class="fc" id="L119">					(cal.get(Calendar.MONTH) + 1) + &quot;/&quot; + cal.get(Calendar.DATE) + &quot;/&quot; + cal.get(Calendar.YEAR));</span>
+<span class="fc" id="L120">			result.add(dateMessage);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">		} else if (message.compareToIgnoreCase(ServerConstants.TIME_COMMAND) == 0) {</span>
+<span class="fc" id="L122">			GregorianCalendar cal = new GregorianCalendar();</span>
+<span class="fc" id="L123">			Message timeMessage = Message.makeBroadcastMessage(ServerConstants.NIST_ID,</span>
+<span class="fc" id="L124">					cal.get(Calendar.HOUR_OF_DAY) + &quot;:&quot; + cal.get(Calendar.MINUTE));</span>
+<span class="fc" id="L125">			result.add(timeMessage);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">		} else if (message.compareToIgnoreCase(ServerConstants.IMPATIENT_COMMAND) == 0) {</span>
+<span class="fc" id="L127">			GregorianCalendar cal = new GregorianCalendar();</span>
+<span class="fc" id="L128">			ArrayList&lt;String&gt; text = responses.get(IMPATIENT_COMMAND);</span>
+<span class="fc" id="L129">			result.add(Message.makeBroadcastMessage(&quot;BBC&quot;, text.get(0)));</span>
+<span class="fc" id="L130">			result.add(Message.makeBroadcastMessage(&quot;Mr. Fox&quot;,</span>
+<span class="fc" id="L131">					cal.get(Calendar.HOUR_OF_DAY) + &quot;:&quot; + cal.get(Calendar.MINUTE)));</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">		} else if (responses.get(message) != null) {</span>
+<span class="fc" id="L133">			ArrayList&lt;String&gt; text = responses.get(message);</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">			for (String current : text) {</span>
+<span class="fc" id="L135">				result.add(Message.makeBroadcastMessage(SERVER_NAME, current));</span>
+<span class="fc" id="L136">			}</span>
+<span class="fc" id="L137">		} else {</span>
+<span class="fc" id="L138">			result = null;</span>
+		}
+<span class="fc" id="L140">		return result;</span>
+	}
+	
+	public static int getPort()
+	{
+<span class="fc" id="L145">		return PORT;</span>
+	}
+
+	public static String getServerName() {
+<span class="fc" id="L149">		return SERVER_NAME;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

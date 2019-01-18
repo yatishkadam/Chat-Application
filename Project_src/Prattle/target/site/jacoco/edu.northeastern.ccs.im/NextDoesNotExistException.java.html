@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NextDoesNotExistException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im</a> &gt; <span class="el_source">NextDoesNotExistException.java</span></div><h1>NextDoesNotExistException.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im;
+
+/**
+ * Exception that highlights when the user reads an entry from a Scan* class and
+ * the entry does not exist.
+ * 
+ * This work is licensed under the Creative Commons Attribution-ShareAlike 4.0
+ * International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-sa/4.0/. It is based on work
+ * originally written by Matthew Hertz and has been adapted for use in a class
+ * assignment at Northeastern University.
+ * 
+ * @version 1.3
+ */
+public class NextDoesNotExistException extends RuntimeException {
+	/** Generated serial version uid. */
+	private static final long serialVersionUID = -2822265714929473142L;
+
+	/**
+	 * Create a new instance of this exception giving an explicit message stating
+	 * why the exception was thrown.
+	 *
+	 * @param message Reason for which the program throws the exception.
+	 */
+	public NextDoesNotExistException(String message) {
+<span class="fc" id="L26">		super(message);</span>
+<span class="fc" id="L27">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

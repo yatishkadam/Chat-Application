@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.db.daos</a> &gt; <span class="el_source">UserDao.java</span></div><h1>UserDao.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.db.daos;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import edu.northeastern.ccs.db.services.ConnectionService;
+import edu.northeastern.ccs.im.models.User;
+
+public class UserDao {
+
+<span class="fc" id="L16">	private static final Logger logger = LogManager.getLogger(UserDao.class);</span>
+
+<span class="fc" id="L18">	private static UserDao instance = null;</span>
+	private static Connection connectionInstance;
+<span class="fc" id="L20">	private PreparedStatement statement = null;</span>
+<span class="fc" id="L21">	private ResultSet results = null;</span>
+
+	private static final String CREATEUSER = &quot;INSERT INTO user (username, identification, wiretapper, wiretappee, parental_control,censored_words, tapped_by) VALUES (?,?,?,?,?,?,?)&quot;;
+	private static final String FINDUSERBYNAME = &quot;SELECT * FROM user WHERE user.username=?&quot;;
+	private static final String DELETEUSERBYNAME = &quot;DELETE FROM user WHERE user.username=?&quot;;
+	private static final String UPDATEUSER = &quot;UPDATE user SET user.firstname=?,&quot;
+			+ &quot;user.lastname=?,user.username=?,user.identification=?, user.wiretapper=?, user.wiretappee=?, user.parental_control=?,user.censored_words=?, user.tapped_by=?  WHERE user.username=?&quot;;
+	
+	private static final String GETUSERID = &quot;SELECT id from user where user.username=?&quot;;
+
+	private static final String GETPROFANEWORDS = &quot;SELECT `user`.`censored_words` FROM `user` WHERE `user`.`username`=?&quot;;
+
+	private static final String UPDATEPROFANEWORDS = &quot;UPDATE user SET user.censored_words=? where user.username=?&quot;;
+	
+	private static final String SETTAPPEDBY = &quot;UPDATE user SET user.tapped_by=? where user.username=?&quot;;
+	
+	private static final String GETTAPPEDBY = &quot;SELECT `user`.`tapped_by` from `user` where `user`.`username`=?&quot;;
+
+	private static final String GETUSERNAME = &quot;SELECT username from user where user.id=?&quot;;
+	
+<span class="fc" id="L41">	private UserDao() {</span>
+<span class="fc" id="L42">	}</span>
+
+	public static UserDao getInstance() {
+<span class="fc bfc" id="L45" title="All 2 branches covered.">		if (instance == null) {</span>
+<span class="fc" id="L46">			instance = new UserDao();</span>
+			try {
+<span class="fc" id="L48">				connectionInstance = ConnectionService.getDatabaseConnection(); </span>
+<span class="nc" id="L49">			} catch (ClassNotFoundException | SQLException e) {</span>
+<span class="nc" id="L50">				logger.info(e);</span>
+<span class="fc" id="L51">			}</span>
+		}
+<span class="fc" id="L53">		return instance;</span>
+	}
+
+	public String getUserName(int userId) {
+<span class="fc" id="L57">		String username = &quot;&quot;;</span>
+		try {
+<span class="fc" id="L59">			statement = connectionInstance.prepareStatement(GETUSERNAME);</span>
+<span class="fc" id="L60">			statement.setInt(1, userId);</span>
+<span class="fc" id="L61">			results = statement.executeQuery();</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L63">				username = results.getString(&quot;username&quot;);</span>
+			} 
+<span class="fc" id="L65">			statement.close();</span>
+<span class="nc" id="L66">		} catch (SQLException e) {</span>
+<span class="nc" id="L67">			logger.info(e);</span>
+<span class="fc" id="L68">		}</span>
+<span class="fc" id="L69">		return username;</span>
+
+	}
+
+	public boolean setCensoredWords(String username, String words) {
+<span class="fc" id="L74">		boolean updateStatus = false;</span>
+		try {
+<span class="fc" id="L76">			statement = connectionInstance.prepareStatement(UPDATEPROFANEWORDS);</span>
+<span class="fc" id="L77">			statement.setString(1, words);</span>
+<span class="fc" id="L78">			statement.setString(2, username);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">			updateStatus = (statement.executeUpdate() == 1);</span>
+<span class="fc" id="L80">			statement.close();</span>
+<span class="nc" id="L81">		} catch (SQLException e) {</span>
+<span class="nc" id="L82">			logger.info(e);</span>
+<span class="fc" id="L83">		}</span>
+<span class="fc" id="L84">		return updateStatus;</span>
+	}
+
+	public String getCensoredWords(String username) {
+<span class="fc" id="L88">		String words = &quot;&quot;;</span>
+		try {
+<span class="fc" id="L90">			statement = connectionInstance.prepareStatement(GETPROFANEWORDS);</span>
+<span class="fc" id="L91">			statement.setString(1, username);</span>
+
+<span class="fc" id="L93">			results = statement.executeQuery();</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L95">				words = results.getString(&quot;censored_words&quot;);</span>
+			}
+<span class="fc" id="L97">			statement.close();</span>
+
+<span class="nc" id="L99">		} catch (SQLException e) {</span>
+<span class="nc" id="L100">			logger.info(e);</span>
+<span class="fc" id="L101">		}</span>
+<span class="fc" id="L102">		return words;</span>
+
+	}
+
+	public int createUser(User user) {
+<span class="fc" id="L107">		int createStatus = 0;</span>
+		try {
+<span class="fc" id="L109">			statement = connectionInstance.prepareStatement(CREATEUSER);</span>
+<span class="fc" id="L110">			statement.setString(1, user.getUsername());</span>
+<span class="fc" id="L111">			statement.setString(2, user.getPassword());</span>
+<span class="fc" id="L112">			statement.setBoolean(3, user.isWireTapper());</span>
+<span class="fc" id="L113">			statement.setBoolean(4, user.isUserTapped());</span>
+<span class="fc" id="L114">			statement.setBoolean(5, user.isParentalControl());</span>
+<span class="fc" id="L115">			statement.setString(6, user.getProfaneWords());</span>
+<span class="fc" id="L116">			statement.setString(7, user.getTappedBy());</span>
+<span class="fc" id="L117">			createStatus = statement.executeUpdate();</span>
+<span class="fc" id="L118">			statement.close();</span>
+<span class="nc" id="L119">		} catch (SQLException e) {</span>
+<span class="nc" id="L120">			logger.info(e);</span>
+<span class="fc" id="L121">		}</span>
+<span class="fc" id="L122">		return createStatus;</span>
+	}
+
+	public User findUserByUsername(String name) {
+<span class="fc" id="L126">		User u = null;</span>
+<span class="fc" id="L127">		boolean found = false;</span>
+		try {
+<span class="fc" id="L129">			statement = connectionInstance.prepareStatement(FINDUSERBYNAME);</span>
+<span class="fc" id="L130">			statement.setString(1, name);</span>
+<span class="fc" id="L131">			results = statement.executeQuery();</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L133">				found = true;</span>
+<span class="fc" id="L134">				int id = results.getInt(&quot;id&quot;);</span>
+<span class="fc" id="L135">				String firstname = results.getString(&quot;firstname&quot;);</span>
+<span class="fc" id="L136">				String lastname = results.getString(&quot;lastname&quot;);</span>
+<span class="fc" id="L137">				String username = results.getString(&quot;username&quot;);</span>
+<span class="fc" id="L138">				String password = results.getString(&quot;identification&quot;);</span>
+<span class="fc" id="L139">				u = new User(id, firstname, lastname, username, password);</span>
+<span class="fc" id="L140">				u.setParentalControl(results.getBoolean(&quot;parental_control&quot;));</span>
+<span class="fc" id="L141">				u.setWiretapper(results.getBoolean(&quot;wiretapper&quot;));</span>
+<span class="fc" id="L142">				u.setWiretappee(results.getBoolean(&quot;wiretappee&quot;));</span>
+<span class="fc" id="L143">				u.setProfaneWords(results.getString(&quot;censored_words&quot;));</span>
+<span class="fc" id="L144">				u.setTappedBy(results.getString(&quot;tapped_by&quot;));</span>
+<span class="fc" id="L145">				break;</span>
+			}
+<span class="fc" id="L147">			statement.close();</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">			if (!found) {</span>
+<span class="fc" id="L149">				return null;</span>
+			}
+
+<span class="nc" id="L152">		} catch (SQLException e) {</span>
+<span class="nc" id="L153">			logger.error(e);</span>
+<span class="fc" id="L154">		}</span>
+<span class="fc" id="L155">		return u;</span>
+	}
+
+	public int deleteUser(String username) {
+<span class="fc" id="L159">		int deleteStatus = -1;</span>
+		try {
+<span class="fc" id="L161">			statement = connectionInstance.prepareStatement(DELETEUSERBYNAME);</span>
+<span class="fc" id="L162">			statement.setString(1, username);</span>
+<span class="fc" id="L163">			deleteStatus = statement.executeUpdate();</span>
+<span class="fc" id="L164">			statement.close();</span>
+<span class="nc" id="L165">		} catch (SQLException e) {</span>
+<span class="nc" id="L166">			logger.error(e);</span>
+<span class="fc" id="L167">		}</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">		if (deleteStatus != 0) {</span>
+			/*
+			 * Status 1 means Delete Successful
+			 */
+<span class="fc" id="L172">			return 1;</span>
+		}
+		/*
+		 * Status 0 means Delete Failed
+		 */
+		else {
+<span class="fc" id="L178">			return deleteStatus;</span>
+		}
+	}
+
+	// 0 for failed
+	// 1 for success
+	public int updateUser(String username, User u) {
+<span class="fc" id="L185">		int updateStatus = 0;</span>
+		try {
+<span class="fc" id="L187">			statement = connectionInstance.prepareStatement(UPDATEUSER);</span>
+<span class="fc" id="L188">			statement.setString(1, u.getFirstName());</span>
+<span class="fc" id="L189">			statement.setString(2, u.getLastName());</span>
+<span class="fc" id="L190">			statement.setString(3, u.getUsername());</span>
+<span class="fc" id="L191">			statement.setString(4, u.getPassword());</span>
+<span class="fc" id="L192">			statement.setBoolean(5, u.isWireTapper());</span>
+<span class="fc" id="L193">			statement.setBoolean(6, u.isUserTapped());</span>
+<span class="fc" id="L194">			statement.setBoolean(7, u.isParentalControl());</span>
+<span class="fc" id="L195">			statement.setString(8, u.getProfaneWords());</span>
+<span class="fc" id="L196">			statement.setString(9, u.getTappedBy());</span>
+<span class="fc" id="L197">			statement.setString(10, username);</span>
+<span class="fc" id="L198">			updateStatus = statement.executeUpdate();</span>
+<span class="fc" id="L199">			statement.close();</span>
+<span class="nc" id="L200">		} catch (SQLException e) {</span>
+<span class="nc" id="L201">			logger.error(e);</span>
+<span class="fc" id="L202">		}</span>
+<span class="fc" id="L203">		return updateStatus;</span>
+	}
+
+	/*
+	 * -1 : when userNotFound &gt;0 : UserId when User Found
+	 */
+	public int getUserIdFromUsername(String username) {
+<span class="fc" id="L210">		int userId = -1;</span>
+		try {
+<span class="fc" id="L212">			statement = connectionInstance.prepareStatement(GETUSERID);</span>
+<span class="fc" id="L213">			statement.setString(1, username);</span>
+<span class="fc" id="L214">			results = statement.executeQuery();</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L216">				userId = results.getInt(&quot;id&quot;);</span>
+			}
+<span class="fc" id="L218">		} catch (SQLException | NullPointerException e) {</span>
+<span class="fc" id="L219">			logger.error(e);</span>
+<span class="fc" id="L220">		}</span>
+<span class="fc" id="L221">		return userId;</span>
+	}
+
+	public boolean setTappingAgencyForUser(String username, String tappedBy) {
+<span class="fc" id="L225">		boolean updateStatus = false;</span>
+		try {
+<span class="fc" id="L227">			statement = connectionInstance.prepareStatement(SETTAPPEDBY);</span>
+<span class="fc" id="L228">			statement.setString(1, tappedBy);</span>
+<span class="fc" id="L229">			statement.setString(2, username);</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">			updateStatus = statement.executeUpdate() == 1;</span>
+<span class="fc" id="L231">			statement.close();</span>
+<span class="nc" id="L232">		} catch (SQLException e) {</span>
+<span class="nc" id="L233">			logger.info(e);</span>
+<span class="fc" id="L234">		}</span>
+<span class="fc" id="L235">		return updateStatus;</span>
+	}
+
+	public String getTappedbyForUser(String username) {
+<span class="fc" id="L239">		String tappedBy = &quot;&quot;;</span>
+		try {
+<span class="fc" id="L241">			statement = connectionInstance.prepareStatement(GETTAPPEDBY);</span>
+<span class="fc" id="L242">			statement.setString(1, username);</span>
+<span class="fc" id="L243">			results = statement.executeQuery();</span>
+<span class="fc" id="L244">			results.next();</span>
+<span class="fc" id="L245">			tappedBy = results.getString(&quot;tapped_by&quot;);</span>
+<span class="fc" id="L246">			statement.close();</span>
+<span class="fc" id="L247">		} catch (SQLException e) {</span>
+<span class="fc" id="L248">			logger.info(e);</span>
+<span class="fc" id="L249">		}</span>
+<span class="fc" id="L250">		return tappedBy;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

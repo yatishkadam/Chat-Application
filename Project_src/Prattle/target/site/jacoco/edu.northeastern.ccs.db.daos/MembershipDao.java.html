@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MembershipDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.db.daos</a> &gt; <span class="el_source">MembershipDao.java</span></div><h1>MembershipDao.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.db.daos;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import edu.northeastern.ccs.db.services.ConnectionService;
+
+public class MembershipDao {
+
+<span class="fc" id="L18">	private static final Logger logger = LogManager.getLogger(MembershipDao.class);</span>
+
+<span class="fc" id="L20">	private static MembershipDao instance = null;</span>
+	private static Connection connectionInstance;
+<span class="fc" id="L22">	private PreparedStatement statement = null;</span>
+<span class="fc" id="L23">	private ResultSet results = null;</span>
+
+	private static final String CREATEMEMBER = &quot;INSERT INTO `membership` (`membership`.`username`, `membership`.`group_name`, `membership`.`admin`) VALUES (?,?,?)&quot;;
+	private static final String CREATEADMIN = &quot;INSERT INTO `membership` (`membership`.`username`, `membership`.`group_name`, `membership`.`admin`) VALUES (?,?,?)&quot;;
+
+	private static final String FINDUSERGROUPS = &quot;SELECT * FROM `membership` WHERE `membership`.`username`=?&quot;;
+	
+	private static final String FINDMEMBERFORGROUP = &quot;SELECT * FROM `membership` WHERE `membership`.`username`=? AND `membership`.`group_name`=?&quot;;
+
+	private static final String FINDALLUSERSINGROUP = &quot;SELECT * FROM `membership` WHERE `membership`.`group_name`=?&quot;;
+
+	private static final String FINDALLADMINSINGROUP = &quot;SELECT * FROM `membership` WHERE &quot;
+			+ &quot;`membership`.`group_name`=? AND `membership`.`admin`=?&quot;;
+
+	private static final String FINDADMINFORGROUP = &quot;SELECT * FROM `membership` WHERE &quot;
+			+ &quot;`membership`.`username`=? AND `membership`.`group_name`=? AND `membership`.`admin`=?&quot;;
+
+	private static final String DELETEMEMBERSHIP = &quot;DELETE FROM `membership` WHERE `membership`.`username`=? &quot;
+			+ &quot;AND `membership`.`group_name`=?&quot;;
+
+<span class="fc" id="L43">	private MembershipDao() {</span>
+<span class="fc" id="L44">	}</span>
+
+	public static MembershipDao getInstance() {
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">		if (instance == null) {</span>
+<span class="fc" id="L48">			instance = new MembershipDao();</span>
+			try {
+<span class="fc" id="L50">				connectionInstance = ConnectionService.getDatabaseConnection();</span>
+<span class="nc" id="L51">			} catch (ClassNotFoundException | SQLException e) {</span>
+<span class="nc" id="L52">				logger.info(e);</span>
+<span class="fc" id="L53">			}</span>
+		}
+<span class="fc" id="L55">		return instance;</span>
+	}
+
+	public int createMembership(String username, String groupName) {
+<span class="fc" id="L59">		int createStatus = 0;</span>
+		try {
+<span class="fc" id="L61">			statement = connectionInstance.prepareStatement(CREATEMEMBER, Statement.RETURN_GENERATED_KEYS);</span>
+<span class="fc" id="L62">			statement.setString(1, username);</span>
+<span class="fc" id="L63">			statement.setString(2, groupName);</span>
+<span class="fc" id="L64">			statement.setBoolean(3, false);</span>
+<span class="fc" id="L65">			createStatus = statement.executeUpdate();</span>
+<span class="fc" id="L66">			statement.close();</span>
+<span class="fc" id="L67">		} catch (SQLException e) {</span>
+<span class="fc" id="L68">			logger.info(e);</span>
+<span class="fc" id="L69">		}</span>
+<span class="fc" id="L70">		return createStatus;</span>
+	}
+
+	public int createAdmin(String username, String groupName) {
+<span class="fc" id="L74">		int createStatus = 0;</span>
+		try {
+<span class="fc" id="L76">			statement = connectionInstance.prepareStatement(CREATEADMIN, Statement.RETURN_GENERATED_KEYS);</span>
+<span class="fc" id="L77">			statement.setString(1, username);</span>
+<span class="fc" id="L78">			statement.setString(2, groupName);</span>
+<span class="fc" id="L79">			statement.setBoolean(3, true);</span>
+<span class="fc" id="L80">			createStatus = statement.executeUpdate();</span>
+<span class="fc" id="L81">			statement.close();</span>
+<span class="fc" id="L82">		} catch (SQLException e) {</span>
+<span class="fc" id="L83">			logger.info(e);</span>
+<span class="fc" id="L84">		}</span>
+<span class="fc" id="L85">		return createStatus;</span>
+	}
+
+	public int deleteMembership(String username, String groupName) {
+<span class="fc" id="L89">		int deleteStatus = -1;</span>
+		try {
+<span class="fc" id="L91">			statement = connectionInstance.prepareStatement(DELETEMEMBERSHIP);</span>
+<span class="fc" id="L92">			statement.setString(1, username);</span>
+<span class="fc" id="L93">			statement.setString(2, groupName);</span>
+<span class="fc" id="L94">			deleteStatus = statement.executeUpdate();</span>
+<span class="fc" id="L95">			statement.close();</span>
+<span class="nc" id="L96">		} catch (SQLException e) {</span>
+<span class="nc" id="L97">			logger.error(e);</span>
+<span class="fc" id="L98">		}</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (deleteStatus != 0) {</span>
+			/*
+			 * Status 1 means Delete Successful
+			 */
+<span class="fc" id="L103">			return 1;</span>
+		}
+		/*
+		 * Status 0 means Delete Failed
+		 */
+		else {
+<span class="fc" id="L109">			return deleteStatus;</span>
+		}
+	}
+
+	public boolean findAdminForGroup(String username, String groupName) {
+<span class="fc" id="L114">		boolean found = false;</span>
+		try {
+<span class="fc" id="L116">			statement = connectionInstance.prepareStatement(FINDADMINFORGROUP);</span>
+<span class="fc" id="L117">			statement.setString(1, username);</span>
+<span class="fc" id="L118">			statement.setString(2, groupName);</span>
+<span class="fc" id="L119">			statement.setBoolean(3, true);</span>
+<span class="fc" id="L120">			results = statement.executeQuery();</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L122">				found = true;</span>
+				break;
+			}
+<span class="fc" id="L125">			statement.close();</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">			if (!found) {</span>
+<span class="fc" id="L127">				logger.info(username + &quot; is not the admin for the group : &quot; + groupName);</span>
+<span class="fc" id="L128">				return found;</span>
+			}
+
+<span class="nc" id="L131">		} catch (SQLException e) {</span>
+<span class="nc" id="L132">			logger.error(e);</span>
+<span class="fc" id="L133">		}</span>
+<span class="fc" id="L134">		return found;</span>
+	}
+
+	public List&lt;String&gt; findAllGroupsForUser(String username) {
+<span class="fc" id="L138">		List&lt;String&gt; myGroups = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L140">			statement = connectionInstance.prepareStatement(FINDUSERGROUPS);</span>
+<span class="fc" id="L141">			statement.setString(1, username);</span>
+<span class="fc" id="L142">			results = statement.executeQuery();</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L144">				String groupName = results.getString(&quot;group_name&quot;);</span>
+<span class="fc" id="L145">				myGroups.add(groupName);</span>
+<span class="fc" id="L146">			}</span>
+<span class="fc" id="L147">			statement.close();</span>
+<span class="nc" id="L148">		} catch (SQLException e) {</span>
+<span class="nc" id="L149">			logger.error(e);</span>
+<span class="fc" id="L150">		}</span>
+<span class="fc" id="L151">		return myGroups;</span>
+	}
+
+	public List&lt;String&gt; findAllUsersForGroup(String groupname) {
+<span class="fc" id="L155">		List&lt;String&gt; members = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L157">			statement = connectionInstance.prepareStatement(FINDALLUSERSINGROUP);</span>
+<span class="fc" id="L158">			statement.setString(1, groupname);</span>
+<span class="fc" id="L159">			results = statement.executeQuery();</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L161">				String username = results.getString(&quot;username&quot;);</span>
+<span class="fc" id="L162">				members.add(username);</span>
+<span class="fc" id="L163">			}</span>
+<span class="fc" id="L164">			statement.close();</span>
+<span class="nc" id="L165">		} catch (SQLException e) {</span>
+<span class="nc" id="L166">			logger.error(e);</span>
+<span class="fc" id="L167">		}</span>
+<span class="fc" id="L168">		return members;</span>
+	}
+	
+	public List&lt;String&gt; findAllAdminsForGroup(String groupname) {
+<span class="fc" id="L172">		List&lt;String&gt; members = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L174">			statement = connectionInstance.prepareStatement(FINDALLADMINSINGROUP);</span>
+<span class="fc" id="L175">			statement.setString(1, groupname);</span>
+<span class="fc" id="L176">			statement.setBoolean(2, true);</span>
+<span class="fc" id="L177">			results = statement.executeQuery();</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L179">				String username = results.getString(&quot;username&quot;);</span>
+<span class="fc" id="L180">				members.add(username);</span>
+<span class="fc" id="L181">			}</span>
+<span class="fc" id="L182">			statement.close();</span>
+<span class="nc" id="L183">		} catch (SQLException e) {</span>
+<span class="nc" id="L184">			logger.error(e);</span>
+<span class="fc" id="L185">		}</span>
+<span class="fc" id="L186">		return members;</span>
+	}
+	
+	public boolean isMember(String username, String groupName) {
+<span class="fc" id="L190">		boolean found = false;</span>
+		try {
+<span class="fc" id="L192">			statement = connectionInstance.prepareStatement(FINDMEMBERFORGROUP);</span>
+<span class="fc" id="L193">			statement.setString(1, username);</span>
+<span class="fc" id="L194">			statement.setString(2, groupName);</span>
+<span class="fc" id="L195">			results = statement.executeQuery();</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">			while (results.next()) {</span>
+<span class="fc" id="L197">				found = true;</span>
+				break;
+			}
+<span class="fc" id="L200">			statement.close();</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">			if (!found) {</span>
+<span class="fc" id="L202">				logger.info(username + &quot; is not a member of the group : &quot; + groupName);</span>
+<span class="fc" id="L203">				return found;</span>
+			}
+
+<span class="nc" id="L206">		} catch (SQLException e) {</span>
+<span class="nc" id="L207">			logger.error(e);</span>
+<span class="fc" id="L208">		}</span>
+<span class="fc" id="L209">		return found;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

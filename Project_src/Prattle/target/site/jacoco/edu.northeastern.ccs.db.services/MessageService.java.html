@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MessageService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.db.services</a> &gt; <span class="el_source">MessageService.java</span></div><h1>MessageService.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.db.services;
+
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import edu.northeastern.ccs.db.daos.MessageDao;
+import edu.northeastern.ccs.db.daos.UserDao;
+import edu.northeastern.ccs.im.models.MessageModel;
+
+public class MessageService {
+
+<span class="fc" id="L16">	private static final Logger logger = LogManager.getLogger(MessageService.class);</span>
+	private static final String SENDERNOTREGISTERED = &quot;Sender is not registered with chat server.&quot;;
+<span class="fc" id="L18">	private static MessageDao messageDao = MessageDao.getInstance();</span>
+<span class="fc" id="L19">	private static UserDao userDao = UserDao.getInstance();</span>
+
+	private MessageService() {
+	}
+
+	// return : true if success else false
+	public static MessageModel createMessage(String text, String senderUsername, String senderIp,
+			String receiverUsername, String receiverIp, Timestamp creationDate, boolean deliveryStatus,
+			boolean recallStatus) {
+<span class="fc" id="L28">		int senderId = userDao.getUserIdFromUsername(senderUsername);</span>
+<span class="fc" id="L29">		int receiverId = userDao.getUserIdFromUsername(receiverUsername);</span>
+
+<span class="fc bfc" id="L31" title="All 4 branches covered.">		if (senderId == -1 || receiverId == -1) {</span>
+<span class="fc" id="L32">			logger.info(&quot;Either sender or receiver is not present in this chat server.&quot;);</span>
+<span class="fc" id="L33">			return null;</span>
+		}
+<span class="fc bfc" id="L35" title="All 2 branches covered.">		if (senderId == receiverId) {</span>
+<span class="fc" id="L36">			logger.info(&quot;Sender cannot send message to herself/himself.&quot;);</span>
+<span class="fc" id="L37">			return null;</span>
+		}
+<span class="fc" id="L39">		MessageModel message = new MessageModel(text, senderId, senderIp, receiverId, receiverIp, creationDate,</span>
+				deliveryStatus, recallStatus);
+<span class="fc" id="L41">		return messageDao.createMessage(message);</span>
+	}
+
+	/**
+	 * Update message delivery status.
+	 *
+	 * @param message_id      the message id
+	 * @param delivery_status the delivery status
+	 * @return the int
+	 * @author Karan Tyagi
+	 */
+	// return 1 if successfully updated, -1 otherwise false
+	public static int updateMessageDeliveryStatus(int messageId, boolean deliveryStatus) {
+<span class="fc" id="L54">		return messageDao.setMessageDelivery(messageId, deliveryStatus);</span>
+	}
+	
+	/**
+	 * Update recall message status.
+	 *
+	 * @param message_id the message id
+	 * @param delivery_status the new recall status which needs to be updated
+	 * @return the int
+	 * @author Karan Tyagi
+	 */
+	// return 1 if successfully updated, -1 otherwise false
+		public static int updateRecallMessageStatus(int messageId, boolean recallStatus) {
+<span class="fc" id="L67">			return messageDao.setMessageRecallStatus(messageId, recallStatus);</span>
+		}
+
+	// return 1 if successfully updated, -1 otherwise false
+	public static int updateSenderIp(String senderUsername, String ipAddress) {
+<span class="fc" id="L72">		int id = userDao.getUserIdFromUsername(senderUsername);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">		if (id == -1) {</span>
+<span class="fc" id="L74">			logger.info(&quot;Sender not registered with chat server.&quot;);</span>
+<span class="fc" id="L75">			return -1;</span>
+		} else {
+<span class="fc" id="L77">			return messageDao.updateSenderIp(id, ipAddress);</span>
+		}
+	}
+
+	// return 1 if successfully updated, -1 otherwise false
+		public static int updateReceiverIp(String receiverUsername, String ipAddress) {
+<span class="fc" id="L83">			int id = userDao.getUserIdFromUsername(receiverUsername);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">			if (id == -1) {</span>
+<span class="fc" id="L85">				logger.info(&quot;Receiver is not registered with chat server.&quot;);</span>
+<span class="fc" id="L86">				return -1;</span>
+			} else {
+<span class="fc" id="L88">				return messageDao.updateReceiverIp(id, ipAddress);</span>
+			}
+		}
+
+	public static MessageModel getMessage(int messageId) {
+<span class="fc" id="L93">		return messageDao.findMessageById(messageId);</span>
+	}
+
+	public static List&lt;MessageModel&gt; getListOfUndeliveredMessagesForUser(String username) {
+<span class="fc" id="L97">		List&lt;MessageModel&gt; messages = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L98">		int receiverId = userDao.getUserIdFromUsername(username);</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (receiverId == -1) {</span>
+<span class="fc" id="L100">			logger.info(&quot;The user doesn't exist on the chat system&quot;);</span>
+<span class="fc" id="L101">			return messages;</span>
+		}
+<span class="fc" id="L103">		messages = messageDao.getListOfUndeliveredMessagesForUser(receiverId);</span>
+<span class="fc" id="L104">		return messages; </span>
+	}
+
+	public static List&lt;MessageModel&gt; getMessagesSentByUser(String username) {
+<span class="fc" id="L108">		int senderId = userDao.getUserIdFromUsername(username);</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">		if (senderId == -1) {</span>
+<span class="fc" id="L110">			logger.info(SENDERNOTREGISTERED);</span>
+<span class="fc" id="L111">			return new ArrayList&lt;&gt;();</span>
+		} else {
+<span class="fc" id="L113">			return messageDao.findSentMessages(senderId);</span>
+		}
+	}
+
+	public static List&lt;MessageModel&gt; getMessagesReceivedByUser(String username) {
+<span class="fc" id="L118">		int senderId = userDao.getUserIdFromUsername(username);</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">		if (senderId == -1) {</span>
+<span class="fc" id="L120">			logger.info(SENDERNOTREGISTERED);</span>
+<span class="fc" id="L121">			return new ArrayList&lt;&gt;();</span>
+		} else {
+<span class="fc" id="L123">			return messageDao.findReceivedMessages(senderId);</span>
+		}
+	}
+
+	public static List&lt;MessageModel&gt; getMessageConversation(String senderUsername, String receiverUsername) {
+<span class="fc" id="L128">		int senderId = userDao.getUserIdFromUsername(senderUsername);</span>
+<span class="fc" id="L129">		int receiverId = userDao.getUserIdFromUsername(receiverUsername);</span>
+<span class="fc bfc" id="L130" title="All 4 branches covered.">		if (senderId == -1 || receiverId == -1) {</span>
+<span class="fc" id="L131">			logger.info(&quot;Sender or receiver is not registered with chat server.&quot;);</span>
+<span class="fc" id="L132">			return new ArrayList&lt;&gt;();</span>
+		} else {
+<span class="fc" id="L134">			return messageDao.findMessageConversation(senderId, receiverId);</span>
+		}
+	}
+
+	/**
+	 * Gets the message conversation for duration.
+	 *
+	 * @param senderUsername the sender username
+	 * @param start          the start
+	 * @param end            the end
+	 * @return the message conversation for duration
+	 * @author Karan Tyagi
+	 */
+	public static List&lt;MessageModel&gt; getMessageConversationforDuration(String senderUsername, Timestamp start,
+			Timestamp end) {
+<span class="fc" id="L149">		int senderId = userDao.getUserIdFromUsername(senderUsername);</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (senderId == -1) {</span>
+<span class="fc" id="L151">			logger.info(SENDERNOTREGISTERED);</span>
+<span class="fc" id="L152">			return new ArrayList&lt;&gt;();</span>
+		} else {
+<span class="fc" id="L154">			return messageDao.getConversation(senderId, start, end);</span>
+		}
+	}
+
+	public static boolean handleRecallMessagesForReceiver(String senderUsername) {
+<span class="fc" id="L159">		int senderId = userDao.getUserIdFromUsername(senderUsername);</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">		if (senderId == -1) {</span>
+<span class="fc" id="L161">			logger.info(SENDERNOTREGISTERED);</span>
+<span class="fc" id="L162">			return false;</span>
+		} else {
+<span class="fc" id="L164">			return messageDao.handleRecallMessage(senderId);</span>
+		}
+	}
+	
+	public static boolean recallMessageById(int messageId, String senderUsername) {
+<span class="fc" id="L169">		return messageDao.recallById(messageId, senderUsername);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

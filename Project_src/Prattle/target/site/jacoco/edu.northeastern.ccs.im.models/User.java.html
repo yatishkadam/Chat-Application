@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>User.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im.models</a> &gt; <span class="el_source">User.java</span></div><h1>User.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im.models;
+
+import java.security.NoSuchAlgorithmException;
+
+import edu.northeastern.ccs.im.HashGenerator;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+public class User {
+	
+	/** Id for the user for whom we use this ClientRunnable to communicate. */
+	private int userId;
+
+	/** Name that the client used when connecting to the server. */
+	private String username;
+	
+	/** First name for the client */
+	private String firstName;
+	
+	/** Last name for the client */
+	private String lastName;
+
+	/** Password of the user */
+	private String password;
+	
+	/** Is the user a wiretapper */
+	private boolean wiretapper;
+	
+	/** Is the user being tapped */
+	private boolean wiretappee;
+	
+	/** Has user signed up for parental control */
+	private boolean parentalControl;
+	
+	/** String containing the profane words */ 
+	private String profaneWords;
+	
+	/** the agency who is tapping this user*/
+	private String tappedBy;
+	
+<span class="fc" id="L41">	private static final Logger logger = LogManager.getLogger(User.class);</span>
+
+	// initialize and create a user
+<span class="fc" id="L44">	public User(String username, String password) {</span>
+<span class="fc" id="L45">		this.username = username;</span>
+<span class="fc" id="L46">		this.password = password;</span>
+<span class="fc" id="L47">		this.firstName = null;</span>
+<span class="fc" id="L48">		this.lastName = null;</span>
+<span class="fc" id="L49">		this.wiretapper = false;</span>
+<span class="fc" id="L50">		this.wiretappee = false;</span>
+<span class="fc" id="L51">		this.parentalControl = false;</span>
+<span class="fc" id="L52">		this.tappedBy = null;</span>
+<span class="fc" id="L53">	}</span>
+	
+	// initialize and create a user
+<span class="fc" id="L56">		public User(int id, String username, String password) {</span>
+<span class="fc" id="L57">			this.userId = id;</span>
+<span class="fc" id="L58">			this.username = username;</span>
+<span class="fc" id="L59">			this.password = password;</span>
+<span class="fc" id="L60">			this.firstName = null;</span>
+<span class="fc" id="L61">			this.lastName = null;</span>
+<span class="fc" id="L62">			this.wiretapper = false;</span>
+<span class="fc" id="L63">			this.wiretappee = false;</span>
+<span class="fc" id="L64">			this.parentalControl = false;</span>
+<span class="fc" id="L65">			this.tappedBy = null;</span>
+<span class="fc" id="L66">		}</span>
+
+	// uninitialized user
+<span class="fc" id="L69">	public User() {</span>
+<span class="fc" id="L70">		this.userId = -1;</span>
+<span class="fc" id="L71">		this.username = null;</span>
+<span class="fc" id="L72">		this.firstName = null;</span>
+<span class="fc" id="L73">		this.lastName = null;</span>
+<span class="fc" id="L74">		this.password = null;</span>
+<span class="fc" id="L75">		this.wiretapper = false;</span>
+<span class="fc" id="L76">		this.wiretappee = false;</span>
+<span class="fc" id="L77">		this.parentalControl = false;</span>
+<span class="fc" id="L78">		this.tappedBy = null;</span>
+<span class="fc" id="L79">	}</span>
+	
+<span class="fc" id="L81">	public User(int id, String first, String last, String username, String password){</span>
+<span class="fc" id="L82">		this.userId = id;</span>
+<span class="fc" id="L83">		this.firstName = first;</span>
+<span class="fc" id="L84">		this.lastName = last;</span>
+<span class="fc" id="L85">		this.username = username;</span>
+<span class="fc" id="L86">		this.password = password;</span>
+<span class="fc" id="L87">		this.wiretapper = false;</span>
+<span class="fc" id="L88">		this.wiretappee = false;</span>
+<span class="fc" id="L89">		this.parentalControl = false;</span>
+<span class="fc" id="L90">		this.tappedBy = null;</span>
+<span class="fc" id="L91">	}</span>
+	
+<span class="fc" id="L93">	public User(String first, String last, String username, String password){</span>
+<span class="fc" id="L94">		this.firstName = first;</span>
+<span class="fc" id="L95">		this.lastName = last;</span>
+<span class="fc" id="L96">		this.username = username;</span>
+<span class="fc" id="L97">		this.password = password;</span>
+<span class="fc" id="L98">		this.wiretapper = false;</span>
+<span class="fc" id="L99">		this.wiretappee = false;</span>
+<span class="fc" id="L100">		this.parentalControl = false;</span>
+<span class="fc" id="L101">		this.tappedBy = null;</span>
+<span class="fc" id="L102">	}</span>
+
+	public String getFirstName() {
+<span class="fc" id="L105">		return firstName;</span>
+	}
+
+	public void setFirstName(String firstName) {
+<span class="fc" id="L109">		this.firstName = firstName;</span>
+<span class="fc" id="L110">	}</span>
+
+	public String getLastName() {
+<span class="fc" id="L113">		return lastName;</span>
+	}
+
+	public void setLastName(String lastName) {
+<span class="fc" id="L117">		this.lastName = lastName;</span>
+<span class="fc" id="L118">	}</span>
+
+	public String getUsername() {
+<span class="fc" id="L121">		return username;</span>
+	}
+
+	public void setUsername(String username) {
+<span class="fc" id="L125">		this.username = username;</span>
+<span class="fc" id="L126">	}</span>
+
+	public String getPassword() {
+<span class="fc" id="L129">		return password;</span>
+	}
+
+	public void setPassword(String password) {
+		try {
+<span class="fc" id="L134">			this.password = HashGenerator.getSHA256(password);</span>
+<span class="nc" id="L135">		} catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L136">			logger.error(e);</span>
+<span class="fc" id="L137">		}</span>
+<span class="fc" id="L138">	}</span>
+
+	@Override
+	public String toString() {
+<span class="fc" id="L142">		return &quot;User [username=&quot; + username + &quot;, firstName=&quot; + firstName + &quot;, lastName=&quot; + lastName +&quot;]&quot;;</span>
+	}
+
+	public int getUserId() {
+<span class="fc" id="L146">		return userId;</span>
+	}
+
+	public void setUserId(int userId) {
+<span class="fc" id="L150">		this.userId = userId;</span>
+<span class="fc" id="L151">	}</span>
+	
+	public boolean isParentalControl() {
+<span class="fc" id="L154">		return parentalControl;</span>
+	}
+
+	public void setParentalControl(boolean parentalControl) {
+<span class="fc" id="L158">		this.parentalControl = parentalControl;</span>
+<span class="fc" id="L159">	}</span>
+
+	public boolean getParentalControl(){
+<span class="fc" id="L162">		return this.parentalControl;</span>
+	}
+
+	/**
+	 * Set this user to be tapped
+	 */
+	public void tapUser()
+	{
+<span class="fc" id="L170">		this.wiretappee = true;</span>
+<span class="fc" id="L171">	}</span>
+	
+	/**
+	 * Make this user a wire tapper
+	 */
+	public boolean setAsWiretapper()
+	{
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		if(!this.wiretappee)</span>
+		{	
+<span class="fc" id="L180">			this.wiretapper = true;</span>
+<span class="fc" id="L181">			return true;</span>
+		}
+		
+<span class="fc" id="L184">		return false;</span>
+	}
+	
+	
+	/**
+	 * Check if a user is being tapped
+	 * @return true iff the user is being tapped
+	 * 		   else false
+	 */
+	public boolean isUserTapped()
+	{
+<span class="fc" id="L195">		return this.wiretappee;</span>
+	}
+	
+	/**
+	 * Check if a user is a wiretapper
+	 * @return true iff the user is a wire tapper
+	 * 		   else false
+	 */
+	public boolean isWireTapper()
+	{
+<span class="fc" id="L205">		return this.wiretapper;</span>
+	}
+
+	public void setWiretapper(boolean wiretapper) {
+<span class="fc" id="L209">		this.wiretapper = wiretapper;</span>
+<span class="fc" id="L210">	}</span>
+
+	public void setWiretappee(boolean wiretappee) {
+<span class="fc" id="L213">		this.wiretappee = wiretappee;</span>
+<span class="fc" id="L214">	}</span>
+
+	public String getProfaneWords() {
+<span class="fc" id="L217">		return profaneWords;</span>
+	}
+
+	public void setProfaneWords(String profaneWords) {
+<span class="fc" id="L221">		this.profaneWords = profaneWords;</span>
+<span class="fc" id="L222">	}</span>
+
+	public void appendWordsTOProfane(String words){
+<span class="fc bfc" id="L225" title="All 2 branches covered.">		if (this.profaneWords != null){</span>
+<span class="fc" id="L226">			this.profaneWords = this.profaneWords + &quot; &quot; + words;</span>
+		}
+		else {
+<span class="fc" id="L229">			this.profaneWords = words;</span>
+		}
+<span class="fc" id="L231">	}</span>
+
+	public void removeWordFromFilteredList(String word){
+<span class="fc" id="L234">		this.profaneWords = this.profaneWords.replaceAll(word, &quot;&quot;);</span>
+<span class="fc" id="L235">	}</span>
+
+	public String getTappedBy() {
+<span class="fc" id="L238">		return tappedBy;</span>
+	}
+
+	public void setTappedBy(String tappedBy) {
+<span class="fc" id="L242">		this.tappedBy = tappedBy;</span>
+<span class="fc" id="L243">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

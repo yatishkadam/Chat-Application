@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MessageModel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im.models</a> &gt; <span class="el_source">MessageModel.java</span></div><h1>MessageModel.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im.models;
+
+import java.sql.Timestamp;
+
+public class MessageModel {
+
+	private int id;
+	private String text;
+	private int senderId;
+	private String senderIp;
+	private int receiverId;
+	private String receiverIp;
+	private Timestamp date;
+	private boolean deliveredStatus;
+	private boolean recallStatus;
+	private boolean profane;
+	
+	public MessageModel(String msgText, int senderId, String senderIp, int receiverId, String receiverIp, Timestamp date) {
+<span class="fc" id="L19">		super();</span>
+<span class="fc" id="L20">		this.text = msgText;</span>
+<span class="fc" id="L21">		this.senderId = senderId;</span>
+<span class="fc" id="L22">		this.senderIp = senderIp;</span>
+<span class="fc" id="L23">		this.receiverId = receiverId;</span>
+<span class="fc" id="L24">		this.receiverIp = receiverIp;</span>
+<span class="fc" id="L25">		this.date = date;	</span>
+<span class="fc" id="L26">		this.profane = false;</span>
+<span class="fc" id="L27">	}</span>
+	
+	public MessageModel(int id, String text, int senderId, String senderIp, int receiverId, String receiverIp, Timestamp date,
+			boolean deliveredStatus, boolean recallStatus) {
+<span class="fc" id="L31">		super();</span>
+<span class="fc" id="L32">		this.id = id;</span>
+<span class="fc" id="L33">		this.text = text;</span>
+<span class="fc" id="L34">		this.senderId = senderId;</span>
+<span class="fc" id="L35">		this.senderIp = senderIp;</span>
+<span class="fc" id="L36">		this.receiverId = receiverId;</span>
+<span class="fc" id="L37">		this.receiverIp = receiverIp;</span>
+<span class="fc" id="L38">		this.date = date;</span>
+<span class="fc" id="L39">		this.deliveredStatus = deliveredStatus;</span>
+<span class="fc" id="L40">		this.recallStatus = recallStatus;</span>
+<span class="fc" id="L41">		this.profane = false;</span>
+<span class="fc" id="L42">	}</span>
+	
+	public MessageModel(String text, int senderId, String senderIp, int receiverId, String receiverIp, Timestamp date,
+			boolean deliveredStatus, boolean recallStatus) {
+<span class="fc" id="L46">		super();</span>
+<span class="fc" id="L47">		this.text = text;</span>
+<span class="fc" id="L48">		this.senderId = senderId;</span>
+<span class="fc" id="L49">		this.senderIp = senderIp;</span>
+<span class="fc" id="L50">		this.receiverId = receiverId;</span>
+<span class="fc" id="L51">		this.receiverIp = receiverIp;</span>
+<span class="fc" id="L52">		this.date = date;</span>
+<span class="fc" id="L53">		this.deliveredStatus = deliveredStatus;</span>
+<span class="fc" id="L54">		this.recallStatus = recallStatus;</span>
+<span class="fc" id="L55">		this.profane = false;</span>
+<span class="fc" id="L56">	}</span>
+	
+	public MessageModel(String text, int senderId, String senderIp, int receiverId, Timestamp date,
+			boolean deliveredStatus, boolean recallStatus) {
+<span class="fc" id="L60">		super();</span>
+<span class="fc" id="L61">		this.text = text;</span>
+<span class="fc" id="L62">		this.senderId = senderId;</span>
+<span class="fc" id="L63">		this.senderIp = senderIp;</span>
+<span class="fc" id="L64">		this.receiverId = receiverId;</span>
+<span class="fc" id="L65">		this.date = date;</span>
+<span class="fc" id="L66">		this.deliveredStatus = deliveredStatus;</span>
+<span class="fc" id="L67">		this.recallStatus = recallStatus;</span>
+<span class="fc" id="L68">		this.profane = false;</span>
+<span class="fc" id="L69">	}</span>
+
+	public int getId() {
+<span class="fc" id="L72">		return id;</span>
+	}
+
+	public void setId(int id) {
+<span class="fc" id="L76">		this.id = id;</span>
+<span class="fc" id="L77">	}</span>
+
+	public String getText() {
+<span class="fc" id="L80">		return text;</span>
+	}
+
+	public void setText(String text) {
+<span class="fc" id="L84">		this.text = text;</span>
+<span class="fc" id="L85">	}</span>
+
+	public int getSenderId() {
+<span class="fc" id="L88">		return senderId;</span>
+	}
+
+	public void setSenderId(int senderId) {
+<span class="fc" id="L92">		this.senderId = senderId;</span>
+<span class="fc" id="L93">	}</span>
+
+	public String getSenderIp() {
+<span class="fc" id="L96">		return senderIp;</span>
+	}
+
+	public void setSenderIp(String senderIp) {
+<span class="fc" id="L100">		this.senderIp = senderIp;</span>
+<span class="fc" id="L101">	}</span>
+
+	public int getReceiverId() {
+<span class="fc" id="L104">		return receiverId;</span>
+	}
+
+	public void setReceiverId(int receiverId) {
+<span class="fc" id="L108">		this.receiverId = receiverId;</span>
+<span class="fc" id="L109">	}</span>
+
+	public String getReceiverIp() {
+<span class="fc" id="L112">		return receiverIp;</span>
+	}
+
+	public void setReceiverIp(String receiverIp) {
+<span class="fc" id="L116">		this.receiverIp = receiverIp;</span>
+<span class="fc" id="L117">	}</span>
+
+	public Timestamp getDate() {
+<span class="fc" id="L120">		return date;</span>
+	}
+
+	public void setDate(Timestamp date) {
+<span class="fc" id="L124">		this.date = date;</span>
+<span class="fc" id="L125">	}</span>
+
+	public boolean isDeliveredStatus() {
+<span class="fc" id="L128">		return deliveredStatus;</span>
+	}
+
+	public void setDeliveredStatus(boolean deliveredStatus) {
+<span class="fc" id="L132">		this.deliveredStatus = deliveredStatus;</span>
+<span class="fc" id="L133">	}</span>
+
+	public boolean isRecallStatus() {
+<span class="fc" id="L136">		return recallStatus;</span>
+	}
+
+	public void setRecallStatus(boolean recallStatus) {
+<span class="fc" id="L140">		this.recallStatus = recallStatus;</span>
+<span class="fc" id="L141">	}</span>
+
+	public boolean isProfane() {
+<span class="fc" id="L144">		return profane;</span>
+	}
+
+	public void setProfane(boolean profane) {
+<span class="fc" id="L148">		this.profane = profane;</span>
+<span class="fc" id="L149">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

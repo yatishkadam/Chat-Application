@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SocketNB.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im</a> &gt; <span class="el_source">SocketNB.java</span></div><h1>SocketNB.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
+
+/**
+ * This class resembles the traditional Socket, but is designed to be used by my
+ * non-blocking I/O classes. Instances of this class must be constructed before
+ * it is used to drive the input and output of non-blocking network traffic
+ * classes.
+ * 
+ * This work is licensed under the Creative Commons Attribution-ShareAlike 4.0
+ * International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-sa/4.0/. It is based on work
+ * originally written by Matthew Hertz and has been adapted for use in a class
+ * assignment at Northeastern University.
+ * 
+ * @version 1.3
+ */
+<span class="pc bpc" id="L24" title="1 of 2 branches missed.">public class SocketNB {</span>
+	/**
+	 * This class merely acts as a wrapper for Java's SocketChannel class; this is
+	 * the actual instance of SocketChannel.
+	 */
+	private SocketChannel channel;
+
+	private String hostName;
+	
+	private int portNum;
+	
+	/**
+	 * Creates a new network connection that connects to the specified port number
+	 * on the named host.
+	 *
+	 * @param host Hostname of the computer to which we are connecting
+	 * @param port Number of the port on the other computer which we use to connect
+	 * @throws IOException If an I/O error occurs when creating the socket, this
+	 *                     will be thrown.
+	 */
+<span class="fc" id="L44">	public SocketNB(String host, int port) throws IOException {</span>
+		// Open a new channel
+<span class="fc" id="L46">		channel = SocketChannel.open();</span>
+		// Make this channel a non-blocking channel
+<span class="fc" id="L48">		channel.configureBlocking(false);</span>
+		// Connect the channel to the remote port
+<span class="fc" id="L50">		channel.connect(new InetSocketAddress(host, port));</span>
+		// Open the selector to handle our non-blocking I/O
+<span class="fc" id="L52">		final Selector selector = Selector.open();</span>
+		// Register our channel to receive alerts to complete the connection
+<span class="fc" id="L54">		final SelectionKey key = channel.register(selector, SelectionKey.OP_CONNECT);</span>
+		// Do nothing but wait until we have a response.
+<span class="fc" id="L56">		selector.select(0);</span>
+
+<span class="fc" id="L58">		this.hostName = host;</span>
+		
+<span class="fc" id="L60">		this.portNum  = port;</span>
+		
+<span class="pc bpc" id="L62" title="2 of 4 branches missed.">		assert key.isConnectable();</span>
+
+		// Try and complete creating this connection
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">		if (!channel.finishConnect()) {</span>
+<span class="nc" id="L66">			throw new IOException(&quot;Error, something went wrong and I was unable&quot; + &quot; to finish making this connection&quot;);</span>
+		}
+		// We are done, close this selector.
+<span class="fc" id="L69">		selector.close();</span>
+<span class="fc" id="L70">	}</span>
+
+	/**
+	 * Get the SocketChannel that this class is designed to hide. Using this
+	 * SocketChannel allows us to write classes that perform non-blocking I/O in a
+	 * manner similar to how we perform blocking I/O.
+	 *
+	 * @return Returns the SocketChannel for which this class acts as a wrapper.
+	 */
+	protected SocketChannel getSocket() {
+<span class="fc" id="L80">		return channel;</span>
+	}
+
+	/**
+	 * &lt;p&gt;
+	 * Closes this non-blocking socket.
+	 * &lt;p&gt;
+	 * Once a SocketNB has been closed, it is not available for further networking
+	 * use (i.e. can't be reconnected or rebound). A new SocketNB needs to be
+	 * created.
+	 *
+	 * @throws IOException Exception thrown when an I/O error occurs closing this
+	 *                     socket.
+	 */
+	public void close() throws IOException {
+<span class="fc" id="L95">		channel.close();</span>
+<span class="fc" id="L96">	}</span>
+
+	// Check if the socket is currently open.
+	protected boolean isConnected() {
+<span class="fc bfc" id="L100" title="All 2 branches covered.">		if (channel == null) {</span>
+<span class="fc" id="L101">			return false;</span>
+		} else {
+<span class="fc" id="L103">			return channel.isOpen();</span>
+		}
+	}
+	
+	/**
+	 * Send a Message over the network. This method performs its actions by
+	 * printing the given Message over the SocketNB instance with which the
+	 * SendIM was instantiated.
+	 * 
+	 * @param msg
+	 *            Message to be sent out over the network.
+	 */
+	protected void print(Message msg) {
+<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (!isConnected()) {</span>
+<span class="fc" id="L117">			throw new IllegalOperationException(&quot;Cannot send a message when we are not connected!&quot;);</span>
+		}
+<span class="fc" id="L119">		String str = msg.toString();</span>
+<span class="fc" id="L120">		ByteBuffer wrapper = ByteBuffer.wrap(str.getBytes());</span>
+<span class="fc" id="L121">		int bytesWritten = 0;</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">		while (bytesWritten != str.length()) {</span>
+			try {
+<span class="fc" id="L124">				bytesWritten += channel.write(wrapper);</span>
+<span class="nc" id="L125">			} catch (IOException e) {</span>
+				// May want to do something here, but now will simply cover the
+				// issue up
+<span class="nc bnc" id="L128" title="All 2 branches missed.">				assert false;</span>
+<span class="pc" id="L129">			}</span>
+		}
+<span class="fc" id="L131">	}</span>
+	
+	protected void startIMConnection() throws IOException {
+		// Open a new channel
+<span class="fc" id="L135">		channel = SocketChannel.open();</span>
+		Selector selectorPublic;
+		// Make this channel a non-blocking channel
+<span class="fc" id="L138">		channel.configureBlocking(false);</span>
+		// Connect the channel to the remote port
+<span class="fc" id="L140">		channel.connect(new InetSocketAddress(hostName, portNum));</span>
+		// Open the selector to handle our non-blocking I/O
+<span class="fc" id="L142">		Selector regSelector = Selector.open();</span>
+		// Register our channel to receive alerts to complete the connection
+<span class="fc" id="L144">		SelectionKey regKey = channel.register(regSelector, SelectionKey.OP_CONNECT);</span>
+		// Do nothing but wait until we have a response.
+<span class="fc" id="L146">		regSelector.select(0);</span>
+<span class="pc bpc" id="L147" title="2 of 4 branches missed.">		assert regKey.isConnectable();</span>
+		// Try and complete creating this connection
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">		if (!channel.finishConnect()) {</span>
+<span class="nc" id="L150">			throw new IOException(&quot;Error, something went wrong and I was unable to finish making this connection&quot;);</span>
+		}
+		// We are done, close this selector.
+<span class="fc" id="L153">		regSelector.close();</span>
+
+		try {
+			// Open the selector to handle our non-blocking I/O
+<span class="fc" id="L157">			selectorPublic = Selector.open();</span>
+			// Register our channel to receive alerts to complete the connection
+<span class="fc" id="L159">			channel.register(selectorPublic, SelectionKey.OP_READ);</span>
+<span class="nc" id="L160">		} catch (IOException e) {</span>
+			// For the moment we are going to simply cover up that there was a
+			// problem.
+<span class="nc bnc" id="L163" title="All 2 branches missed.">			assert false;</span>
+<span class="fc" id="L164">		}</span>
+<span class="fc" id="L165">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,592 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CommandService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im.services</a> &gt; <span class="el_source">CommandService.java</span></div><h1>CommandService.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im.services;
+
+import java.util.Arrays;
+import java.sql.Timestamp;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+
+import edu.northeastern.ccs.db.services.GroupService;
+import edu.northeastern.ccs.db.services.MembershipService;
+import edu.northeastern.ccs.db.services.MessageService;
+import edu.northeastern.ccs.db.services.UserService;
+import edu.northeastern.ccs.im.Message;
+import edu.northeastern.ccs.im.models.MessageModel;
+import edu.northeastern.ccs.im.models.User;
+import edu.northeastern.ccs.im.server.ClientRunnable;
+import edu.northeastern.ccs.im.server.Prattle;
+import edu.northeastern.ccs.slack.Notification;
+
+public class CommandService {
+
+	private CommandService() {
+	}
+
+	private static CommandService singleInstance;
+
+	private static final String WRONGCOMMANDMSG = &quot;Provide command in proper format. Use /help if needed!&quot;;
+
+	private static final String WRONGGROUPNAMEMSG = &quot;No such group exists ! Enter a correct group name.&quot;;
+
+	/**
+	 * Singleton pattern to keep only one instance of the CommandService floating
+	 * around
+	 * 
+	 * @return an instance of the CommandService class
+	 */
+	public static synchronized CommandService getInstance() {
+<span class="fc bfc" id="L39" title="All 2 branches covered.">		if (singleInstance == null) {</span>
+<span class="fc" id="L40">			singleInstance = new CommandService();</span>
+		}
+<span class="fc" id="L42">		return singleInstance;</span>
+	}
+
+	/**
+	 * Processes commands based on the type of the user
+	 * 
+	 * @param requester   ClienRunnable of the caller
+	 * @param messageLine Command to be executed
+	 */
+	public void processCommand(ClientRunnable requester, String messageLine) {
+<span class="fc" id="L52">		User user = requester.getUser();</span>
+<span class="fc" id="L53">		String commandOut = &quot;&quot;;</span>
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">		if (user.isWireTapper())</span>
+<span class="fc" id="L56">			commandOut = processWireTapperCommands(requester, messageLine);</span>
+		else
+<span class="fc" id="L58">			commandOut = processUserCommand(requester, messageLine);</span>
+
+<span class="fc" id="L60">		Message cmdmsg = Message.makeCommandMessage(requester.getName(), commandOut);</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">		if (requester.isInitialized())</span>
+<span class="fc" id="L62">			requester.enqueueMessage(cmdmsg);</span>
+<span class="fc" id="L63">	}</span>
+
+	/**
+	 * Processes command given by the user to provide the proper output
+	 * 
+	 * @param requester   ClientRunnable instance of the user that requested the
+	 *                    command
+	 * @param messageLine Name of the command requested by the user
+	 * @return command output
+	 */
+	public String processUserCommand(ClientRunnable requester, String messageLine) {
+<span class="fc" id="L74">		String commandOut = &quot;&quot;;</span>
+<span class="fc" id="L75">		String[] splitInput = messageLine.split(&quot; &quot;);</span>
+<span class="fc" id="L76">		messageLine = splitInput[0];</span>
+<span class="fc" id="L77">		User user = requester.getUser();</span>
+
+		try {
+<span class="fc bfc" id="L80" title="All 2 branches covered.">			if (messageLine.equals(&quot;/profile&quot;))</span>
+<span class="fc" id="L81">				commandOut = requester.printProfile();</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">			else if (messageLine.startsWith(&quot;/get&quot;))</span>
+<span class="fc" id="L83">				commandOut = processGetCommand(messageLine, user, requester, splitInput);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">			else if (messageLine.startsWith(&quot;/set&quot;))</span>
+<span class="fc" id="L85">				commandOut = processSetCommand(messageLine, user, splitInput[1]);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/deleteaccount&quot;))</span>
+<span class="fc" id="L87">				commandOut = processDeleteAccountCommand(requester, user);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/deletegroup&quot;))</span>
+<span class="fc" id="L89">				commandOut = processDeleteGroupCommand(user, splitInput[1]);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/help&quot;))</span>
+<span class="fc" id="L91">				commandOut = getHelp();</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/mygroups&quot;))</span>
+<span class="fc" id="L93">				commandOut = PrintService.printGroupsforUser(user);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/newgroup&quot;))</span>
+<span class="fc" id="L95">				commandOut = newGroup(user, splitInput[1]);</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/joingroup&quot;))</span>
+<span class="fc" id="L97">				commandOut = joinGroup(user, splitInput[1]);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/leavegroup&quot;))</span>
+<span class="fc" id="L99">				commandOut = leaveGroup(user, splitInput[1]);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">			else if (messageLine.startsWith(&quot;/list&quot;))</span>
+<span class="fc" id="L101">				commandOut = processlistCommands(messageLine, splitInput[1]);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/updatepassword&quot;))</span>
+<span class="fc" id="L103">				commandOut = updatePassword(user, splitInput[1]);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/becomewiretapper&quot;))</span>
+<span class="fc" id="L105">				commandOut = processSetWireTapper(user);</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">			else if (messageLine.equals(&quot;/displayunreadmsgs&quot;)) {</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">				if (!processDisplayUnreadMsg(user))</span>
+<span class="fc" id="L108">					commandOut = &quot;You don't have any unread messages&quot;;</span>
+				else
+<span class="fc" id="L110">					commandOut = &quot;All unread Messages displayed!&quot;;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">			} else if (messageLine.equals(&quot;/turnonparentalcontrol&quot;)) {</span>
+<span class="fc" id="L112">				user.setParentalControl(true);</span>
+<span class="fc" id="L113">				UserService.updateUser(user.getUsername(), user); </span>
+<span class="fc" id="L114">				commandOut = &quot;Parental Control is set to on&quot;;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">			} else if (messageLine.equals(&quot;/turnoffparentalcontrol&quot;)) {</span>
+<span class="fc" id="L116">				user.setParentalControl(false);</span>
+<span class="fc" id="L117">				UserService.updateUser(user.getUsername(), user);</span>
+<span class="fc" id="L118">				commandOut = &quot;Parental Control is set to off&quot;;</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">			} else if (messageLine.equals(&quot;/addfilteredwords&quot;)) {</span>
+<span class="fc" id="L120">				String[] filterWordsTOUpate = Arrays.copyOfRange(splitInput, 1, splitInput.length);</span>
+<span class="fc" id="L121">				user.appendWordsTOProfane(String.join(&quot;,&quot;, filterWordsTOUpate));</span>
+<span class="fc" id="L122">				UserService.updateUser(user.getUsername(), user);</span>
+<span class="fc" id="L123">				commandOut = &quot;words to be filtered added&quot;;</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">			} else if (messageLine.equals(&quot;/removefilteredwords&quot;)) {</span>
+<span class="fc" id="L125">				String filterWordsTOUpate = splitInput[1];</span>
+<span class="fc" id="L126">				user.removeWordFromFilteredList(filterWordsTOUpate);</span>
+<span class="fc" id="L127">				UserService.updateUser(user.getUsername(), user);</span>
+<span class="fc" id="L128">				commandOut = &quot;words to be filtered removed&quot;;</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">			} else if (messageLine.equals(&quot;/recalllastmessage&quot;)) {</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">				if (!MessageService.handleRecallMessagesForReceiver(user.getUsername()))</span>
+<span class="fc" id="L131">					commandOut = &quot;unable to recall last sent message&quot;;</span>
+				else
+<span class="nc" id="L133">					commandOut = &quot;Last message recalled. Will not be delivered to offline user&quot;;</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">			} else if(messageLine.equals(&quot;/recallmessagebyid&quot;))</span>
+			{
+<span class="fc bfc" id="L136" title="All 2 branches covered.">				if(!MessageService.recallMessageById(Integer.parseInt(splitInput[1]), user.getUsername()))</span>
+<span class="fc" id="L137">					commandOut = &quot;unable to recall message by given id&quot;;</span>
+				else
+<span class="fc" id="L139">					commandOut = &quot;Message recalled successfully by ID&quot;;</span>
+			}
+			else {
+<span class="fc" id="L142">				commandOut = WRONGCOMMANDMSG;</span>
+			}
+<span class="fc" id="L144">		} catch (Exception e) {</span>
+<span class="fc" id="L145">			commandOut = WRONGCOMMANDMSG;</span>
+<span class="fc" id="L146">			Notification.sendNotificationToSlack(&quot;FAILURE | LEVEL : LOW | MSG : Wrong command entered by user&quot;);</span>
+<span class="fc" id="L147">		}</span>
+
+<span class="fc" id="L149">		return commandOut;</span>
+	}
+
+	/**
+	 * Process commands sent by wiretapper
+	 * 
+	 * @param requester   ClientRunnable of the wiretapper
+	 * @param messageLine command to be executed
+	 * @return
+	 */
+	private String processWireTapperCommands(ClientRunnable requester, String messageLine) {
+<span class="fc" id="L160">		String commandOut = &quot;&quot;;</span>
+<span class="fc" id="L161">		String[] splitInput = messageLine.split(&quot; &quot;);</span>
+<span class="fc" id="L162">		messageLine = splitInput[0];</span>
+
+		try {
+<span class="fc bfc" id="L165" title="All 2 branches covered.">			if (messageLine.equals(&quot;/wiretap&quot;)) {</span>
+<span class="fc" id="L166">				User tappedUser = UserService.getUserData(splitInput[1]);</span>
+<span class="fc" id="L167">				tappedUser.tapUser();</span>
+
+<span class="fc" id="L169">				String startTime = splitInput[2] + &quot; &quot; + splitInput[3];</span>
+<span class="fc" id="L170">				String endTime = splitInput[4] + &quot; &quot; + splitInput[5];</span>
+
+<span class="fc" id="L172">				List&lt;MessageModel&gt; conversation = MessageService.getMessageConversationforDuration(</span>
+<span class="fc" id="L173">						tappedUser.getUsername(), getTimestampFromString(startTime), getTimestampFromString(endTime));</span>
+ 
+<span class="fc bfc" id="L175" title="All 2 branches covered.">				if (!displayConversationWireTapper(conversation, requester.getUser()))</span>
+<span class="fc" id="L176">					commandOut = &quot;No conversations for the provided user&quot;;</span>
+				else
+<span class="fc" id="L178">					commandOut = &quot;All wiretapped messages diplayed!&quot;;</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">			} else if (messageLine.equals(&quot;/help&quot;)) {</span>
+<span class="fc" id="L180">				commandOut = getWireTapperHelp();</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">			} else if (messageLine.equals(&quot;/displayunreadmsgs&quot;)) {</span>
+<span class="fc" id="L182">				commandOut = &quot;Let the wiretapping begin&quot;;</span>
+			}
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">			else if(messageLine.equals(&quot;/settarget&quot;))</span>
+			{
+<span class="fc" id="L186">				User target = UserService.getUserData(splitInput[1]);</span>
+				
+<span class="pc bpc" id="L188" title="1 of 4 branches missed.">				if(!target.isUserTapped() &amp;&amp; !target.isWireTapper())</span>
+				{	
+<span class="fc" id="L190">					target.setTappedBy(requester.getName());</span>
+<span class="fc" id="L191">					target.setWiretappee(true);</span>
+<span class="fc" id="L192">					UserService.updateUser(target.getUsername(), target);</span>
+<span class="fc" id="L193">					commandOut = &quot;Wiretap target set&quot;;</span>
+				}
+				else
+<span class="fc" id="L196">					commandOut = &quot;Can't tap this user as another agency is already tapping the user&quot;;</span>
+			}
+<span class="fc" id="L198">		} catch (Exception e) {</span>
+<span class="fc" id="L199">			commandOut = WRONGCOMMANDMSG;</span>
+<span class="fc" id="L200">		}</span>
+
+<span class="fc" id="L202">		return commandOut;</span>
+	}
+
+	private boolean processDisplayUnreadMsg(User user) {
+<span class="fc" id="L206">		List&lt;MessageModel&gt; unreadMsgs = MessageService.getListOfUndeliveredMessagesForUser(user.getUsername());</span>
+<span class="fc" id="L207">		ClientRunnable client = Prattle.getClientFromActive(user.getUsername());</span>
+<span class="fc" id="L208">		boolean status = false;</span>
+		
+<span class="fc bfc" id="L210" title="All 2 branches covered.">		if (unreadMsgs.isEmpty())</span>
+<span class="fc" id="L211">			return status;</span>
+
+<span class="fc bfc" id="L213" title="All 2 branches covered.">		for (MessageModel msg : unreadMsgs) {</span>
+<span class="fc" id="L214">			Message toBeSent = Message.makeBroadcastMessageWithTime(UserService.getUsernameForId(msg.getSenderId()),</span>
+<span class="fc" id="L215">					msg.getText(), msg.getDate().toString());</span>
+<span class="fc" id="L216">			client.enqueueMessage(toBeSent);</span>
+<span class="fc" id="L217">			String ipAddress = client.getIpAddressOfClient();</span>
+<span class="fc" id="L218">			MessageService.updateReceiverIp(user.getUsername(), ipAddress);</span>
+<span class="fc" id="L219">			MessageService.updateMessageDeliveryStatus(msg.getId(), true);</span>
+<span class="fc" id="L220">			status = true;</span>
+<span class="fc" id="L221">		}</span>
+
+<span class="fc" id="L223">		return status;</span>
+	}
+
+	private boolean processDisplaySentMessage(List&lt;MessageModel&gt; sentMessages, ClientRunnable requester) {
+<span class="fc" id="L227">		boolean status = false;</span>
+
+<span class="fc bfc" id="L229" title="All 2 branches covered.">		if (sentMessages.isEmpty())</span>
+<span class="fc" id="L230">			return status;</span>
+
+<span class="fc bfc" id="L232" title="All 2 branches covered.">		for (MessageModel msg : sentMessages) {</span>
+<span class="fc" id="L233">			Message toBeSent = Message.makeBroadcastMessageWithTime(&quot;Me&quot;, msg.getText(), msg.getDate().toString());</span>
+<span class="fc" id="L234">			requester.enqueueMessage(toBeSent);</span>
+<span class="fc" id="L235">			status = true;</span>
+<span class="fc" id="L236">		}</span>
+<span class="fc" id="L237">		return status;</span>
+	}
+
+	private boolean processDisplayRecvMessage(List&lt;MessageModel&gt; recvMessages, ClientRunnable requester) {
+<span class="fc" id="L241">		boolean status = false;</span>
+
+<span class="fc bfc" id="L243" title="All 2 branches covered.">		if (recvMessages.isEmpty())</span>
+<span class="fc" id="L244">			return status;</span>
+
+<span class="fc bfc" id="L246" title="All 2 branches covered.">		for (MessageModel msg : recvMessages) {</span>
+<span class="fc" id="L247">			Message toBeSent = Message.makeBroadcastMessageWithTime(UserService.getUsernameForId(msg.getSenderId()),</span>
+<span class="fc" id="L248">					msg.getText(), msg.getDate().toString());</span>
+<span class="fc" id="L249">			requester.enqueueMessage(toBeSent);</span>
+<span class="fc" id="L250">			status = true;</span>
+<span class="fc" id="L251">		}</span>
+<span class="fc" id="L252">		return status;</span>
+	}
+
+	private boolean displayConversationWireTapper(List&lt;MessageModel&gt; conv, User wireTapper) {
+<span class="fc" id="L256">		ClientRunnable client = Prattle.getClientFromActive(wireTapper.getUsername());</span>
+<span class="fc" id="L257">		boolean status = false;</span>
+
+<span class="fc bfc" id="L259" title="All 2 branches covered.">		if (conv.isEmpty())</span>
+<span class="fc" id="L260">			return status;</span>
+		Message toBeSent;
+
+<span class="fc bfc" id="L263" title="All 2 branches covered.">		for (MessageModel msg : conv) {</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">			if (!wireTapper.getUsername().equals(UserService.getUsernameForId(+msg.getSenderId())))</span>
+<span class="fc" id="L265">				toBeSent = Message.makeBroadcastMessageWithTime(UserService.getUsernameForId(+msg.getSenderId()),</span>
+<span class="fc" id="L266">						msg.getText(), msg.getDate().toString());</span>
+			else
+<span class="fc" id="L268">				toBeSent = Message.makeBroadcastMessageWithTime(&quot;Me&quot;, msg.getText(), msg.getDate().toString());</span>
+<span class="fc" id="L269">			client.enqueueMessage(toBeSent);</span>
+<span class="fc" id="L270">			status = true;</span>
+<span class="fc" id="L271">		}</span>
+
+<span class="fc" id="L273">		return status;</span>
+	}
+
+	private Timestamp getTimestampFromString(String time) throws ParseException {
+<span class="fc" id="L277">		SimpleDateFormat date = new SimpleDateFormat(&quot;yyyy-MM-dd hh:mm:ss&quot;);</span>
+<span class="fc" id="L278">		Date parsedDate = date.parse(time);</span>
+<span class="fc" id="L279">		return new Timestamp(parsedDate.getTime());</span>
+	}
+
+	/**
+	 * Help message for wiretappers
+	 * 
+	 * @return
+	 */
+	private String getWireTapperHelp() {
+<span class="fc" id="L288">		return &quot;\nHELP COMMANDS:\n\n&quot; + &quot; Command                    Operation\n&quot;</span>
+				+ &quot; wiretap                 Start Wire Tapping \n&quot;
+				+ &quot; USAGE:                  '/wiretap &lt;usename&gt; &lt;TimeStamp1&gt; &lt;TimeStamp2&gt; \n&quot;
+				+ &quot; help                    Get help message for wiretapper \n&quot; + &quot; USAGE:                  '/help\n&quot;
+				+ &quot; quit                    Logout \n&quot; + &quot; USAGE:                  '/quit\n&quot;;
+	}
+
+	/**
+	 * Processes user's request to become a wiretapper
+	 * 
+	 * @param user requesting user
+	 * @return command Output
+	 */
+	private String processSetWireTapper(User user) {
+<span class="fc" id="L302">		user.setAsWiretapper();</span>
+<span class="fc" id="L303">		boolean result = UserService.updateUser(user.getUsername(), user);</span>
+
+<span class="pc bpc" id="L305" title="1 of 2 branches missed.">		if (result)</span>
+<span class="nc" id="L306">			return &quot;User successfully set as wiretapper&quot;;</span>
+
+<span class="fc" id="L308">		return &quot;User is being tapped so cannot be set as wiretapper&quot;;</span>
+	}
+
+	/**
+	 * Update given user's password
+	 * 
+	 * @param user        User whose password is to be updated
+	 * @param newPassword the new password
+	 * @return command output
+	 */
+	private String updatePassword(User user, String newPassword) {
+<span class="fc" id="L319">		String commandOut = &quot;&quot;;</span>
+<span class="fc" id="L320">		user.setPassword(newPassword);</span>
+<span class="fc" id="L321">		UserService.updateUser(user.getUsername(), user);</span>
+<span class="fc" id="L322">		commandOut = &quot;Password updated successfully!&quot;;</span>
+
+<span class="fc" id="L324">		return commandOut;</span>
+	}
+
+	/**
+	 * Process all the get commands
+	 * 
+	 * @param messageLine contains command
+	 * @param user        caller
+	 * @return command output
+	 */
+	private String processGetCommand(String messageLine, User user, ClientRunnable requester, String[] splitInput) {
+<span class="fc" id="L335">		String commandOut = &quot;&quot;;</span>
+
+<span class="fc bfc" id="L337" title="All 8 branches covered.">		switch (messageLine) {</span>
+		case &quot;/getusername&quot;:
+<span class="fc" id="L339">			commandOut = user.getUsername();</span>
+<span class="fc" id="L340">			break;</span>
+		case &quot;/getfirstname&quot;:
+<span class="fc" id="L342">			commandOut = user.getFirstName();</span>
+<span class="fc" id="L343">			break;</span>
+		case &quot;/getlastname&quot;:
+<span class="fc" id="L345">			commandOut = user.getLastName();</span>
+<span class="fc" id="L346">			break;</span>
+		case &quot;/getuserid&quot;:
+<span class="fc" id="L348">			commandOut += user.getUserId();</span>
+<span class="fc" id="L349">			break;</span>
+		case &quot;/getsentmessages&quot;:
+<span class="fc" id="L351">			List&lt;MessageModel&gt; sentMessages = MessageService.getMessagesSentByUser(user.getUsername());</span>
+<span class="fc bfc" id="L352" title="All 2 branches covered.">			if (!processDisplaySentMessage(sentMessages, requester))</span>
+<span class="fc" id="L353">				commandOut = &quot;No sent Messages Found!&quot;;</span>
+			else
+<span class="fc" id="L355">				commandOut = &quot;All sent messages diplayed!&quot;;</span>
+<span class="fc" id="L356">			break;</span>
+		case &quot;/getreceivedmessages&quot;:
+<span class="fc" id="L358">			List&lt;MessageModel&gt; recvMessages = MessageService.getMessagesReceivedByUser(user.getUsername());</span>
+<span class="fc bfc" id="L359" title="All 2 branches covered.">			if (!processDisplayRecvMessage(recvMessages, requester))</span>
+<span class="fc" id="L360">				commandOut = &quot;No received Messages Found!&quot;;</span>
+			else
+<span class="fc" id="L362">				commandOut = &quot;All received messages diplayed!&quot;;</span>
+<span class="fc" id="L363">			break;</span>
+		case &quot;/getmessagebetween&quot;:
+			try {
+<span class="fc" id="L366">				String startTime = splitInput[1] + &quot; &quot; + splitInput[2];</span>
+<span class="fc" id="L367">				String endTime = splitInput[3] + &quot; &quot; + splitInput[4];</span>
+
+<span class="fc" id="L369">				List&lt;MessageModel&gt; conversation = MessageService.getMessageConversationforDuration(user.getUsername(),</span>
+<span class="fc" id="L370">						getTimestampFromString(startTime), getTimestampFromString(endTime));</span>
+<span class="fc bfc" id="L371" title="All 2 branches covered.">				if (!displayConversationWireTapper(conversation, requester.getUser()))</span>
+<span class="fc" id="L372">					commandOut = &quot;No messages between the provided timestamps&quot;;</span>
+				else
+<span class="fc" id="L374">					commandOut = &quot;All messages between given timestamps diplayed!&quot;;</span>
+<span class="fc" id="L375">			} catch (Exception e) {</span>
+<span class="fc" id="L376">				commandOut = WRONGCOMMANDMSG;</span>
+<span class="fc" id="L377">			}</span>
+<span class="fc" id="L378">			break;</span>
+		default:
+<span class="fc" id="L380">			commandOut = WRONGCOMMANDMSG;</span>
+			break;
+		}
+
+<span class="fc" id="L384">		return commandOut;</span>
+	}
+
+	/**
+	 * Process all the set commands
+	 * 
+	 * @param messageLine contains command
+	 * @param user        caller
+	 * @return command output
+	 */
+	private String processSetCommand(String messageLine, User user, String toBeSet) {
+<span class="fc" id="L395">		String commandOut = &quot;&quot;;</span>
+
+<span class="fc bfc" id="L397" title="All 3 branches covered.">		switch (messageLine) {</span>
+		case &quot;/setfirstname&quot;:
+<span class="fc" id="L399">			user.setFirstName(toBeSet);</span>
+<span class="fc" id="L400">			UserService.updateUser(user.getUsername(), user);</span>
+<span class="fc" id="L401">			commandOut = &quot;User's First Name Updated!&quot;;</span>
+<span class="fc" id="L402">			break;</span>
+		case &quot;/setlastname&quot;:
+<span class="fc" id="L404">			user.setLastName(toBeSet);</span>
+<span class="fc" id="L405">			UserService.updateUser(user.getUsername(), user);</span>
+<span class="fc" id="L406">			commandOut = &quot;User's Last Name Updated!&quot;;</span>
+<span class="fc" id="L407">			break;</span>
+		default:
+<span class="fc" id="L409">			commandOut = WRONGCOMMANDMSG;</span>
+			break;
+		}
+
+<span class="fc" id="L413">		return commandOut;</span>
+	}
+
+	/**
+	 * Process all the delete commands
+	 * 
+	 * @param messageLine contains command
+	 * @param user        caller
+	 * @param toBeSet     group name to delete
+	 * @return command output
+	 */
+	private String processDeleteGroupCommand(User user, String toBeSet) {
+<span class="pc bpc" id="L425" title="1 of 2 branches missed.">		if (GroupService.checkIfGroupExists(toBeSet)) {</span>
+<span class="nc bnc" id="L426" title="All 2 branches missed.">			if (MembershipService.isAdmin(user.getUsername(), toBeSet)) {</span>
+<span class="nc bnc" id="L427" title="All 2 branches missed.">				if (GroupService.deleteGroup(toBeSet))</span>
+<span class="nc" id="L428">					return &quot;Group deleted Successfully!&quot;;</span>
+			} else {
+<span class="nc" id="L430">				return &quot;Cannot delete the group. You are not an admin!&quot;;</span>
+			}
+		}
+<span class="fc" id="L433">		return &quot;Cannot delete this group as no such group exists !&quot;;</span>
+	}
+
+	/**
+	 * Delete user's account completely
+	 * 
+	 * @param user User whose account has to be deleted
+	 * @return command Output
+	 */
+	private String processDeleteAccountCommand(ClientRunnable requester, User user) {
+<span class="fc" id="L443">		boolean result = UserService.deleteUser(user.getUsername());</span>
+
+<span class="pc bpc" id="L445" title="1 of 2 branches missed.">		if (result) {</span>
+			// logout as you have deleted your account
+<span class="nc" id="L447">			Message quitMsg = Message.makeQuitMessage(user.getUsername());</span>
+<span class="nc" id="L448">			requester.enqueueMessage(quitMsg);</span>
+
+<span class="nc" id="L450">			return &quot;User deleted successfully&quot;;</span>
+		}
+
+<span class="fc" id="L453">		return &quot;Unable to delete account!&quot;;</span>
+	}
+
+	/**
+	 * Creates a new group
+	 * 
+	 * @param user      creator
+	 * @param groupName name of the group
+	 * @return command output
+	 */
+	private String newGroup(User user, String groupName) {
+<span class="pc bpc" id="L464" title="1 of 2 branches missed.">		if (GroupService.checkIfGroupExists(groupName)) {</span>
+<span class="fc" id="L465">			return &quot;A group exists by this name&quot;;</span>
+		} else {
+<span class="nc bnc" id="L467" title="All 2 branches missed.">			if (GroupService.createNewGroup(groupName, user.getUsername()))</span>
+<span class="nc" id="L468">				return &quot;Group created Successfully! You are admin!&quot;;</span>
+		}
+
+<span class="nc" id="L471">		return &quot;Group not created&quot;;</span>
+	}
+
+	/**
+	 * Adds the user to the given group
+	 * 
+	 * @param user      user to be added
+	 * @param groupName name of the group
+	 * @return command output
+	 */
+	private String joinGroup(User user, String groupName) {
+<span class="fc" id="L482">		String commandOut = &quot;&quot;;</span>
+
+<span class="pc bpc" id="L484" title="3 of 4 branches missed.">		switch (UserService.joinGroup(user.getUsername(), groupName)) {</span>
+		case (1):
+<span class="nc" id="L486">			commandOut = user.getUsername() + &quot; added to Group &quot; + groupName + &quot; successfully!&quot;;</span>
+<span class="nc" id="L487">			break;</span>
+		case (0):
+<span class="fc" id="L489">			commandOut = &quot;Group not created!&quot;;</span>
+<span class="fc" id="L490">			break;</span>
+		case (-1):
+<span class="nc" id="L492">			commandOut = &quot;You are already a member of this group!&quot;;</span>
+<span class="nc" id="L493">			break;</span>
+		default:
+<span class="nc" id="L495">			commandOut = &quot;Something happened!&quot;;</span>
+			break;
+		}
+
+<span class="fc" id="L499">		return commandOut;</span>
+	}
+
+	/**
+	 * Prints the help menu for the users to refer to
+	 * 
+	 * @return String consisting of the help menu
+	 */
+	public String getHelp() {
+<span class="fc" id="L508">		return &quot;\nHELP COMMANDS:\n\n&quot; + &quot; Command                    Operation\n&quot;</span>
+				+ &quot;profile                    Gets the user's profile like firstname, lastname, userID\n&quot;
+				+ &quot;getfirstname                Returns the first name of the user\n&quot;
+				+ &quot;getlastname                Returns the last name of the user\n&quot;
+				+ &quot;getuserid                Returns the user's ID\n&quot;
+				+ &quot;setfirstname                Sets the first name of the user\n&quot;
+				+ &quot; USAGE:                    '/setfirstname &lt;First-Name&gt;' \n&quot;
+				+ &quot;setlastname                Sets the last name of the user\n&quot;
+				+ &quot; USAGE:                    '/setlastname &lt;Last-Name&gt; '\n&quot;
+				+ &quot;deleteaccount                Delete this user from the system and log out\n&quot;
+				+ &quot;getusername                Returns user's username\n&quot;
+				+ &quot;updatepassword                Update user's password with the provided password\n&quot;
+				+ &quot; USAGE:                    '/updatedpassword &lt;New-Password&gt;'\n&quot;
+				+ &quot;help                    Displays this help message\n&quot; + &quot;quit                    Logs out the user\n&quot;
+				+ &quot;newgroup                Creates a group of the given name'\n&quot;
+				+ &quot; USAGE:                    '/creategroup &lt;Group-Name&gt;'\n&quot;
+				+ &quot;joingroup                Adds the user to the given group'\n&quot;
+				+ &quot; USAGE:                    '/joingroup &lt;Group-Name&gt;'\n&quot;
+				+ &quot;leavegroup                Removes a user from the group\n&quot;
+				+ &quot; USAGE:                    '/leavegroup &lt;Group-Name&gt;'\n&quot;
+				+ &quot;deletegroup                Deletes a group completely\n&quot;
+				+ &quot; USAGE:                    '/deletegroup &lt;Group-Name&gt;'\n&quot;
+				+ &quot;listmembers                List all members of a group\n&quot;
+				+ &quot; USAGE:                    '/listmembers &lt;Group-Name&gt;\n&quot;
+				+ &quot;listadmins                List the admin users of the group\n&quot;
+				+ &quot; USAGE:                    '/listadmins &lt;Group-Name&gt;'\n&quot;
+				+ &quot;\nCommand for Sending Private message to a User\n&quot;
+				+ &quot; USAGE:                    @&lt;receiver's-user-name&gt; &lt;message-to-be-sent&gt;\n&quot;
+				+ &quot;\nCommand for Sending Message to a Group\n&quot;
+				+ &quot; USAGE:                    &gt;&lt;group-name&gt; &lt;message-to-be-sent&gt;\n&quot;
+				+ &quot;displayunreadmsgs        Displays Unread Messages\n&quot;
+				+ &quot;USAGE:                    '/displayunreadmsgs'\n&quot;
+				+ &quot;turnonparentalcontrol    Turns on parental control\n&quot;
+				+ &quot;USAGE:                   '/turnonparentalcontrol\n&quot;
+				+ &quot;turnoffparentalcontrol   Turns off parental control\n&quot;
+				+ &quot;USAGE:                   '/turnoffparentalcontrol\n&quot;
+				+ &quot;addfilteredwords         Adds words to the list of censored words\n&quot;
+				+ &quot;USAGE:                   '/addfilteredwords &lt;word1&gt; &lt;word2&gt;'...\n&quot;
+				+ &quot;removefilteredwords      Removes the word from the list of censored words\n&quot;
+				+ &quot;USAGE:                   '/removefilteredwords &lt;word&gt;\n&quot;
+				+ &quot;recalllastmessage                   Recalls the last message sent by user\n&quot;
+				+ &quot;USAGE:                   '/recalllastmessage \n&quot;
+				+ &quot;getsentmessages          Gets all messages sent by the user\n&quot;
+				+ &quot;USAGE:                   '/getsentmessages \n&quot;
+				+ &quot;getreceivedmessages      Gets all messages received by the user \n&quot;
+				+ &quot;USAGE:                   '/getreceivedmessages \n&quot;
+				+ &quot;getmessagebetween        Gets all messages between two timestamps \n&quot;
+				+ &quot;USAGE:                   '/getmessagebetween &lt;TimeStamp1&gt; &lt;TimeStamp2&gt; \n&quot;;
+	}
+
+	/**
+	 * User leaves the given group
+	 * 
+	 * @param user
+	 * @param groupName name of the group to be left
+	 * @return command output
+	 */
+	private String leaveGroup(User user, String groupName) {
+<span class="pc bpc" id="L566" title="1 of 2 branches missed.">		if (MembershipService.isMember(user.getUsername(), groupName)) {</span>
+<span class="nc" id="L567">			UserService.leaveGroup(user.getUsername(), groupName);</span>
+<span class="nc" id="L568">			return user.getUsername() + &quot; removed from Group &quot; + groupName + &quot; successfully&quot;;</span>
+		}
+<span class="fc" id="L570">		return WRONGGROUPNAMEMSG;</span>
+	}
+
+	/**
+	 * Lists all the members of the given group
+	 * 
+	 * @param groupName name of the group
+	 * @return command output
+	 */
+	private String processlistCommands(String messageLine, String groupName) {
+<span class="fc bfc" id="L580" title="All 2 branches covered.">		if (GroupService.checkIfGroupExists(groupName)) {</span>
+<span class="fc bfc" id="L581" title="All 2 branches covered.">			if (messageLine.equals(&quot;/listmembers&quot;)) {</span>
+<span class="fc" id="L582">				return MembershipService.listMembers(groupName).toString();</span>
+			}
+<span class="fc bfc" id="L584" title="All 2 branches covered.">			if (messageLine.equals(&quot;/listadmins&quot;)) {</span>
+<span class="fc" id="L585">				return MembershipService.listAdmins(groupName).toString();</span>
+			}
+		}
+<span class="fc" id="L588">		return WRONGGROUPNAMEMSG;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

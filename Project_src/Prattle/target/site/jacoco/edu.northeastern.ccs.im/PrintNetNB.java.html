@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PrintNetNB.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im</a> &gt; <span class="el_source">PrintNetNB.java</span></div><h1>PrintNetNB.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im;
+
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+
+/**
+ * This class is similar to the java.io.PrintWriter class, but this class's
+ * methods work with our non-blocking Socket classes. This class could easily be
+ * made to wait for network output (e.g., be made &amp;quot;non-blocking&amp;quot; in
+ * technical parlance), but I have not worried about it yet.
+ * 
+ * This work is licensed under the Creative Commons Attribution-ShareAlike 4.0
+ * International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-sa/4.0/. It is based on work
+ * originally written by Matthew Hertz and has been adapted for use in a class
+ * assignment at Northeastern University.
+ * 
+ * @version 1.3
+ */
+public class PrintNetNB {
+	/** Channel over which we will write out any messages. */
+	private final SocketChannel channel;
+
+	/** Logger for errors **/
+<span class="fc" id="L30">	private static final Logger logger = LogManager.getLogger(PrintNetNB.class);</span>
+	/**
+	 * Number of times to try sending a message before we give up in frustration.
+	 */
+<span class="fc" id="L34">	private int maximunTriesSending = 100;</span>
+
+	/**
+	 * Creates a new instance of this class. Since, by definition, this class sends
+	 * output over the network, we need to supply the non-blocking Socket instance
+	 * to which we will write.
+	 * 
+	 * @param sockChan Non-blocking SocketChannel instance to which we will send all
+	 *                 communication.
+	 */
+<span class="fc" id="L44">	public PrintNetNB(SocketChannel sockChan) {</span>
+		// Remember the channel that we will be using.
+<span class="fc" id="L46">		channel = sockChan;</span>
+<span class="fc" id="L47">	}</span>
+
+	/**
+	 * Creates a new instance of this class. Since, by definition, this class sends
+	 * output over the network, we need to supply the non-blocking Socket instance
+	 * to which we will write.
+	 * 
+	 * @param connection Non-blocking Socket instance to which we will send all
+	 *                   communication.
+	 */
+<span class="fc" id="L57">	public PrintNetNB(SocketNB connection) {</span>
+		// Remember the channel that we will be using.
+<span class="fc" id="L59">		channel = connection.getSocket();</span>
+<span class="fc" id="L60">	}</span>
+
+	/**
+	 * Send a Message over the network. This method performs its actions by printing
+	 * the given Message over the SocketNB instance with which the PrintNetNB was
+	 * instantiated. This returns whether our attempt to send the message was
+	 * successful.
+	 * 
+	 * @param msg Message to be sent out over the network.
+	 * @return True if we successfully send this message; false otherwise.
+	 */
+	public boolean print(Message msg) {
+<span class="fc" id="L72">		String str = msg.toString();</span>
+<span class="fc" id="L73">		ByteBuffer wrapper = ByteBuffer.wrap(str.getBytes());</span>
+<span class="fc" id="L74">		int bytesWritten = 0;</span>
+<span class="fc" id="L75">		int attemptsRemaining = maximunTriesSending;</span>
+<span class="fc bfc" id="L76" title="All 4 branches covered.">		while (wrapper.hasRemaining() &amp;&amp; (attemptsRemaining &gt; 0)) {</span>
+			try {
+<span class="fc" id="L78">				attemptsRemaining--;</span>
+<span class="fc" id="L79">				bytesWritten += channel.write(wrapper);</span>
+<span class="fc" id="L80">			} catch (IOException e) {</span>
+				// Show that this was unsuccessful
+<span class="fc" id="L82">				return false;</span>
+<span class="fc" id="L83">			}</span>
+		}
+		// Check to see if we were successful in our attempt to write the message
+<span class="fc bfc" id="L86" title="All 2 branches covered.">		if (wrapper.hasRemaining()) {</span>
+<span class="fc" id="L87">			logger.log(Level.INFO,&quot;WARNING: Sent only &quot; + bytesWritten + &quot; out of &quot; + wrapper.limit()</span>
+					+ &quot; bytes -- dropping this user.&quot;);
+<span class="fc" id="L89">			return false;</span>
+		}
+<span class="fc" id="L91">		return true;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

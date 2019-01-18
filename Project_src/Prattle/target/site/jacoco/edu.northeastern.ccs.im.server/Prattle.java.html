@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Prattle.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im.server</a> &gt; <span class="el_source">Prattle.java</span></div><h1>Prattle.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im.server;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
+import edu.northeastern.ccs.db.services.ConnectionService;
+import edu.northeastern.ccs.db.services.MembershipService;
+import edu.northeastern.ccs.db.services.MessageService;
+import edu.northeastern.ccs.db.services.UserService;
+import edu.northeastern.ccs.im.Message;
+import edu.northeastern.ccs.im.models.User;
+import edu.northeastern.ccs.im.profanityfilter.ProfanityFilter;
+import edu.northeastern.ccs.slack.Notification;
+
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+/**
+ * A network server that communicates with IM clients that connect to it. This
+ * version of the server spawns a new thread to handle each client that connects
+ * to it. At this point, messages are broadcast to all of the other clients. It
+ * does not send a response when the user has gone off-line.
+ * 
+ * This work is licensed under the Creative Commons Attribution-ShareAlike 4.0
+ * International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-sa/4.0/. It is based on work
+ * originally written by Matthew Hertz and has been adapted for use in a class
+ * assignment at Northeastern University.
+ * 
+ * @version 1.3
+ */
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">public abstract class Prattle {</span>
+	/*
+	 * Logger
+	 */
+<span class="fc" id="L55">	private static final Logger logger = LogManager.getLogger(Prattle.class);</span>
+
+	/** Amount of time we should wait for a signal to arrive. */
+	private static final int DELAY_IN_MS = 50;
+
+	/** Number of threads available in our thread pool. */
+	private static final int THREAD_POOL_SIZE = 20;
+
+	/** Delay between times the thread pool runs the client check. */
+	private static final int CLIENT_CHECK_DELAY = 200;
+
+	/** Collection of threads that are currently being used. */
+	private static ConcurrentLinkedQueue&lt;ClientRunnable&gt; active;
+
+	/** connection instance for connecting to database **/
+	private static Connection dbConnection;
+
+	/** All of the static initialization occurs in this &quot;method&quot; */
+	static {
+		// Create the new queue of active threads.
+<span class="fc" id="L75">		active = new ConcurrentLinkedQueue&lt;&gt;();</span>
+
+		// open connection with database
+		try {
+<span class="fc" id="L79">			dbConnection = ConnectionService.getDatabaseConnection();</span>
+<span class="nc" id="L80">		} catch (ClassNotFoundException | SQLException e) {</span>
+<span class="nc" id="L81">			logger.info(e);</span>
+<span class="fc" id="L82">		}</span>
+<span class="fc" id="L83">	}</span>
+
+	/**
+	 * Broadcast a given message to all the other IM clients currently on the
+	 * system. This message _will_ be sent to the client who originally sent it.
+	 * 
+	 * @param message Message that the client sent.
+	 */
+	public static void broadcastMessage(Message msg) {
+
+		// Loop through all of our active threads
+<span class="fc bfc" id="L94" title="All 2 branches covered.">		for (ClientRunnable tt : active) {</span>
+			// Do not send the message to any clients that are not ready to receive it.
+<span class="fc bfc" id="L96" title="All 2 branches covered.">			if (tt.isInitialized()) {</span>
+<span class="fc" id="L97">				MessageService.createMessage(msg.getText(), msg.getName(), &quot;&quot;, tt.getName(), &quot;&quot;,</span>
+<span class="fc" id="L98">						new Timestamp(System.currentTimeMillis()), true, false);</span>
+<span class="fc" id="L99">				tt.enqueueMessage(msg);</span>
+			}
+<span class="fc" id="L101">		}</span>
+		
+		// check for wiretapper
+<span class="fc" id="L104">		forwardToWireTapper(msg);</span>
+<span class="fc" id="L105">	}</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	private static void runPrattleWithSocket(SocketChannel inputSocket, ScheduledExecutorService pool) {
+
+		ClientRunnable tt;
+		try {
+<span class="fc" id="L112">			tt = new ClientRunnable(inputSocket);</span>
+
+			// Add the thread to the queue of active threads
+<span class="fc" id="L115">			active.add(tt);</span>
+			// Have the client executed by our pool of threads.
+			@SuppressWarnings(&quot;rawtypes&quot;)
+<span class="fc" id="L118">			ScheduledFuture clientFuture = pool.scheduleAtFixedRate(tt, CLIENT_CHECK_DELAY, CLIENT_CHECK_DELAY,</span>
+					TimeUnit.MILLISECONDS);
+<span class="fc" id="L120">			tt.setFuture(clientFuture);</span>
+<span class="nc" id="L121">		} catch (Exception e) {</span>
+<span class="nc" id="L122">			logger.error(&quot;Caught an exception : &quot; + e);</span>
+<span class="fc" id="L123">		}</span>
+
+<span class="fc" id="L125">	}</span>
+
+	private static void iterate(Iterator&lt;SelectionKey&gt; it, ServerSocketChannel serverSocket,
+			ScheduledExecutorService threadPool) {
+
+<span class="fc bfc" id="L130" title="All 2 branches covered.">		while (it.hasNext()) {</span>
+			// Get the next key; it had better be from a new incoming connection
+<span class="fc" id="L132">			SelectionKey key = it.next();</span>
+<span class="fc" id="L133">			it.remove();</span>
+			// Assert certain things I really hope is true
+<span class="pc bpc" id="L135" title="2 of 4 branches missed.">			assert key.isAcceptable();</span>
+<span class="pc bpc" id="L136" title="2 of 4 branches missed.">			assert key.channel() == serverSocket;</span>
+			// Create a new thread to handle the client for which we just received a
+			// request.
+			try {
+				// Accept the connection and create a new thread to handle this client.
+<span class="fc" id="L141">				SocketChannel socket = serverSocket.accept();</span>
+				// Make sure we have a connection to work with.
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">				if (socket != null) {</span>
+<span class="fc" id="L144">					runPrattleWithSocket(socket, threadPool);</span>
+				}
+<span class="nc" id="L146">			} catch (Exception e) {</span>
+<span class="nc" id="L147">				logger.info(&quot;Caught Exception: &quot; + e.toString());</span>
+<span class="nc" id="L148">				Notification.sendNotificationToSlack(&quot;FAILURE | LEVEL : HIGH | MSG : Prattle Server Failed&quot;);</span>
+<span class="fc" id="L149">			}</span>
+<span class="fc" id="L150">		}</span>
+<span class="fc" id="L151">	}</span>
+
+	/**
+	 * Start up the threaded talk server. This class accepts incoming connections on
+	 * a specific port specified on the command-line. Whenever it receives a new
+	 * connection, it will spawn a thread to perform all of the I/O with that
+	 * client. This class relies on the server not receiving too many requests -- it
+	 * does not include any code to limit the number of extant threads.
+	 * 
+	 * @param args String arguments to the server from the command line. At present
+	 *             the only legal (and required) argument is the port on which this
+	 *             server should list.
+	 * @throws IOException            Exception thrown if the server cannot connect
+	 *                                to the port to which it is supposed to listen.
+	 * @throws ClassNotFoundException
+	 */
+	public static void main(String[] args) throws IOException {
+		
+<span class="fc" id="L169">		String loggingBit = &quot;ON&quot;;</span>
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">		if(System.getenv(&quot;LOGGING&quot;)!=null) {</span>
+<span class="nc" id="L171">			loggingBit = System.getenv(&quot;LOGGING&quot;);</span>
+		}
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">		if(loggingBit.equals(&quot;OFF&quot;)) {</span>
+<span class="nc" id="L174">			System.out.println(&quot;Turning Off Logging for Server as Environment variable LOGGING is OFF. &quot;</span>
+					+ &quot;If you wish to log `export LOGGING=ON`&quot;);
+<span class="nc" id="L176">			turnOffLogging();</span>
+		}
+		
+		// Connect to the socket on the appropriate port to which this server connects.
+<span class="fc" id="L180">		try (ServerSocketChannel serverSocket = ServerSocketChannel.open()) {</span>
+<span class="fc" id="L181">			serverSocket.configureBlocking(false);</span>
+<span class="fc" id="L182">			serverSocket.socket().bind(new InetSocketAddress(ServerConstants.PORT));</span>
+			// Create the Selector with which our channel is registered.
+<span class="fc" id="L184">			Selector selector = SelectorProvider.provider().openSelector();</span>
+			// Register to receive any incoming connection messages.
+<span class="fc" id="L186">			serverSocket.register(selector, SelectionKey.OP_ACCEPT);</span>
+			// Create our pool of threads on which we will execute.
+<span class="fc" id="L188">			ScheduledExecutorService threadPool = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);</span>
+			// Listen on this port until ...
+<span class="fc" id="L190">			boolean done = false;</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">			while (!done) {</span>
+				// Check if we have a valid incoming request, but limit the time we may wait.
+<span class="fc bfc" id="L193" title="All 2 branches covered.">				while (selector.select(DELAY_IN_MS) != 0) {</span>
+					// Get the list of keys that have arrived since our last check
+<span class="fc" id="L195">					Set&lt;SelectionKey&gt; acceptKeys = selector.selectedKeys();</span>
+					// Now iterate through all of the keys
+<span class="fc" id="L197">					Iterator&lt;SelectionKey&gt; it = acceptKeys.iterator();</span>
+<span class="fc" id="L198">					iterate(it, serverSocket, threadPool);</span>
+
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">					if (!selector.isOpen())</span>
+<span class="nc" id="L201">						done = true;</span>
+<span class="fc" id="L202">				}</span>
+			}
+			// close database connection
+<span class="nc" id="L205">			ConnectionService.closeDatabaseConnection();</span>
+		}
+<span class="nc" id="L207">	}</span>
+
+	/**
+	 * Remove the given IM client from the list of active threads.
+	 * 
+	 * @param dead Thread which had been handling all the I/O for a client who has
+	 *             since quit.
+	 */
+	public static void removeClient(ClientRunnable dead) {
+		// Test and see if the thread was in our list of active clients so that we
+		// can remove it.
+<span class="fc bfc" id="L218" title="All 2 branches covered.">		if (!active.remove(dead)) {</span>
+<span class="fc" id="L219">			logger.info(&quot;Could not find a thread that I tried to remove!\n&quot;);</span>
+		}
+<span class="fc" id="L221">	}</span>
+
+	/**
+	 * Adds the given message to the waiting queue of messages for proper user
+	 * 
+	 * @param msg Message to be send to the proper user
+	 */
+	public static void sendPrivateMessasge(Message msg) {
+<span class="fc" id="L229">		Message newMsg = Message.makeBroadcastMessage(msg.getName(), msg.getText());</span>
+<span class="fc" id="L230">		newMsg.setRecName(msg.getRecName());</span>
+		
+		// check for wiretapper
+<span class="fc" id="L233">		forwardToWireTapper(msg);</span>
+		
+<span class="fc bfc" id="L235" title="All 2 branches covered.">		if (getClientFromActive(msg.getRecName()) == null) {</span>
+<span class="fc" id="L236">			MessageService.createMessage(msg.getText(), msg.getName(), &quot;&quot;, msg.getRecName(), &quot;&quot;,</span>
+<span class="fc" id="L237">					new Timestamp(System.currentTimeMillis()), false, false);</span>
+<span class="fc" id="L238">			return;</span>
+		}
+
+		// Check for the recv clientrunnable and enque message
+<span class="fc bfc" id="L242" title="All 2 branches covered.">		for (ClientRunnable tt : active) {</span>
+<span class="fc bfc" id="L243" title="All 2 branches covered.">			if (tt.isInitialized()) {</span>
+
+				// Find recv who is online and send message to him
+				// only active user
+<span class="fc bfc" id="L247" title="All 2 branches covered.">				if (tt.getName().equals(msg.getRecName())) {</span>
+					
+<span class="fc" id="L249">					ClientRunnable senderTT = getClientFromActive(msg.getName());</span>
+<span class="fc" id="L250">					String senderIP =&quot;&quot;;</span>
+					
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">					if (senderTT !=null){</span>
+<span class="nc" id="L253">						senderIP = senderTT.getIpAddressOfClient();</span>
+					}
+					
+<span class="fc" id="L256">					MessageService.createMessage(msg.getText(), msg.getName(), senderIP, msg.getRecName(), tt.getIpAddressOfClient(),</span>
+<span class="fc" id="L257">							new Timestamp(System.currentTimeMillis()), true, false);</span>
+
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">					if(newMsg.getRecName() != null){</span>
+<span class="fc" id="L260">						User recUser = UserService.getUserData(newMsg.getRecName());</span>
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">						if (recUser.getParentalControl()){</span>
+<span class="nc" id="L262">							newMsg = (ProfanityFilter.filterMessageOnParentalControlledWords(newMsg));</span>
+						}
+					}
+					
+					
+<span class="fc" id="L267">					tt.enqueueMessage(newMsg);</span>
+				}
+			}
+<span class="fc" id="L270">		}</span>
+<span class="fc" id="L271">	}</span>
+
+	
+	public static void forwardToWireTapper(Message msg)
+	{
+<span class="fc" id="L276">		ClientRunnable sender = getClientFromActive(msg.getName());</span>
+		
+<span class="fc" id="L278">		ClientRunnable recv = getClientFromActive(msg.getRecName());</span>
+		
+<span class="fc bfc" id="L280" title="All 4 branches covered.">		if(sender != null &amp;&amp; sender.getUser().isUserTapped())</span>
+		{
+<span class="fc" id="L282">			User senderWireTapper = UserService.getUserData(sender.getUser().getTappedBy());</span>
+<span class="fc" id="L283">			Message newMsg = Message.makeBroadcastMessage(msg.getName(), msg.getText());</span>
+<span class="fc" id="L284">			ClientRunnable wireTapperClient = getClientFromActive(senderWireTapper.getUsername());</span>
+			
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">			if(wireTapperClient != null)</span>
+<span class="fc" id="L287">				wireTapperClient.enqueueMessage(newMsg);</span>
+		} 
+		
+<span class="fc bfc" id="L290" title="All 4 branches covered.">		if(recv != null &amp;&amp; sender != null)</span>
+		{
+<span class="pc bpc" id="L292" title="1 of 2 branches missed.">			if(recv.getUser().isUserTapped())</span>
+			{
+<span class="fc" id="L294">				User recvrWireTapper = UserService.getUserData(sender.getUser().getTappedBy());</span>
+<span class="fc" id="L295">				Message newMsg = Message.makeBroadcastMessage(msg.getName(),msg.getText());</span>
+<span class="fc" id="L296">				ClientRunnable wireTapperClient = getClientFromActive(recvrWireTapper.getUsername());</span>
+				
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">				if(wireTapperClient != null)</span>
+<span class="fc" id="L299">					wireTapperClient.enqueueMessage(newMsg);</span>
+			}
+		}
+<span class="fc" id="L302">	}</span>
+	
+	/**
+	 * Sends message to all the members of a Group
+	 * 
+	 * @param msg Message to be sent
+	 * @author Prasad
+	 */
+	public static void sendGroupMessage(Message msg) {
+<span class="fc" id="L311">		Message newMsg = Message.makeBroadcastMessage(msg.getName(), msg.getText());</span>
+		
+		// check if the member is part of grp only then allow sending message
+<span class="fc bfc" id="L314" title="All 2 branches covered.">		if (!MembershipService.isMember(msg.getName(), msg.getRecName())) {</span>
+<span class="fc" id="L315">			ClientRunnable tt = getClientFromActive(msg.getName());</span>
+<span class="fc" id="L316">			newMsg = Message.makeCommandMessage(msg.getName(),</span>
+					&quot;You are not a part of the Group so you cannot send a message to this Group.&quot;);
+<span class="pc bpc" id="L318" title="1 of 2 branches missed.">			if (tt != null){</span>
+<span class="fc" id="L319">				tt.enqueueMessage(newMsg);</span>
+			}
+<span class="fc" id="L321">			return;</span>
+		}
+		
+<span class="fc" id="L324">		ClientRunnable senderTT = getClientFromActive(msg.getName());</span>
+<span class="fc" id="L325">		String senderIP =&quot;&quot;;</span>
+		// groupName
+		// get list of members in group
+<span class="fc" id="L328">		List&lt;String&gt; r = MembershipService.listMembers(msg.getRecName());</span>
+<span class="fc" id="L329">		Set&lt;String&gt; receivers = new HashSet&lt;&gt;(r);</span>
+		// send message to all active members of the group
+<span class="fc bfc" id="L331" title="All 2 branches covered.">		for (ClientRunnable tt : active) {</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">			if (tt.isInitialized()) {</span>
+<span class="fc bfc" id="L333" title="All 2 branches covered.">				if (receivers.contains(tt.getName())) {</span>
+<span class="fc" id="L334">					newMsg.setRecName(tt.getName());</span>
+<span class="fc" id="L335">					User recUser = UserService.getUserData(tt.getName());</span>
+
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">					if (senderTT !=null){</span>
+<span class="fc" id="L338">						senderIP = senderTT.getIpAddressOfClient();</span>
+					}
+<span class="pc bpc" id="L340" title="1 of 2 branches missed.">					if (recUser.getParentalControl()){</span>
+<span class="nc" id="L341">						newMsg = (ProfanityFilter.filterMessageOnParentalControlledWords(newMsg));</span>
+					}
+<span class="fc" id="L343">					tt.enqueueMessage(newMsg);</span>
+<span class="fc" id="L344">					MessageService.createMessage(msg.getText(), msg.getName(), senderIP, tt.getName(), tt.getIpAddressOfClient(),</span>
+<span class="fc" id="L345">							new Timestamp(System.currentTimeMillis()), true, false);</span>
+<span class="fc" id="L346">					receivers.remove(tt.getName());</span>
+<span class="fc" id="L347">					newMsg = Message.makeBroadcastMessage(msg.getName(), msg.getText());</span>
+				}
+			}
+<span class="fc" id="L350">		}</span>
+
+		// create undelivered messages to remaining offline users
+<span class="fc bfc" id="L353" title="All 2 branches covered.">		for(String receiver : receivers) {</span>
+<span class="fc" id="L354">			MessageService.createMessage(msg.getText(), msg.getName(), senderIP, receiver, &quot;&quot;,</span>
+<span class="fc" id="L355">					new Timestamp(System.currentTimeMillis()), false, false);</span>
+<span class="fc" id="L356">		}</span>
+<span class="fc" id="L357">	}</span>
+
+	public static ClientRunnable getClientFromActive(String userName) {
+
+<span class="fc bfc" id="L361" title="All 2 branches covered.">		for (ClientRunnable tt : active) {</span>
+<span class="fc bfc" id="L362" title="All 4 branches covered.">			if (tt.isInitialized() &amp;&amp; tt.getName().equals(userName))</span>
+<span class="fc" id="L363">				return tt;</span>
+<span class="fc" id="L364">		}</span>
+
+<span class="fc" id="L366">		return null;</span>
+	}
+
+	public static User getUserFromActive(String userName) {
+
+<span class="fc bfc" id="L371" title="All 2 branches covered.">		for (ClientRunnable tt : active) {</span>
+<span class="fc bfc" id="L372" title="All 4 branches covered.">			if (tt.isInitialized() &amp;&amp; tt.getName().equals(userName))</span>
+<span class="fc" id="L373">				return tt.getUser();</span>
+<span class="fc" id="L374">		}</span>
+
+<span class="fc" id="L376">		throw new NoSuchElementException(&quot;User Not Found!&quot;);</span>
+	}
+
+	private static void turnOffLogging() {
+<span class="fc" id="L380">		Logger.getLogger(&quot;ac.biu.nlp.nlp.engineml&quot;).setLevel(Level.OFF);</span>
+<span class="fc" id="L381">		Logger.getLogger(&quot;org.BIU.utils.logging.ExperimentLogger&quot;).setLevel(Level.OFF);</span>
+<span class="fc" id="L382">		Logger.getRootLogger().setLevel(Level.OFF);</span>
+<span class="fc" id="L383">	}</span>
+	
+	private static void turnOnLogging() {
+<span class="fc" id="L386">		Logger.getLogger(&quot;ac.biu.nlp.nlp.engineml&quot;).setLevel(Level.ALL);</span>
+<span class="fc" id="L387">		Logger.getLogger(&quot;org.BIU.utils.logging.ExperimentLogger&quot;).setLevel(Level.ALL);</span>
+<span class="fc" id="L388">		Logger.getRootLogger().setLevel(Level.ALL);</span>
+<span class="fc" id="L389">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

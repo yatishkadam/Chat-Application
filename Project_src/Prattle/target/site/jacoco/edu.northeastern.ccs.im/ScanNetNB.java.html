@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScanNetNB.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.im</a> &gt; <span class="el_source">ScanNetNB.java</span></div><h1>ScanNetNB.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.im;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+/**
+ * This class is similar to the java.util.Scanner class, but this class's
+ * methods return immediately and does not wait for network input (it is
+ * &amp;quot;non-blocking&amp;quot; in technical parlance).
+ * 
+ * This work is licensed under the Creative Commons Attribution-ShareAlike 4.0
+ * International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-sa/4.0/. It is based on work
+ * originally written by Matthew Hertz and has been adapted for use in a class
+ * assignment at Northeastern University.
+ * 
+ * @version 1.3
+ */
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">public class ScanNetNB {</span>
+
+<span class="fc" id="L32">	private static final Logger logger = LogManager.getLogger(ScanNetNB.class);</span>
+	
+	private static final int BUFFER_SIZE = 64 * 1024;
+
+	private static final int DECIMAL_RADIX = 10;
+
+	private static final int HANDLE_LENGTH = 3;
+
+	private static final int MIN_MESSAGE_LENGTH = 7;
+
+	private static final String CHARSET_NAME = &quot;us-ascii&quot;;
+
+	private SocketChannel channel;
+
+	private Selector selector;
+
+	private SelectionKey key;
+
+	private ByteBuffer buff;
+
+	private Queue&lt;Message&gt; messages;
+
+	/**
+	 * Creates a new instance of this class. Since, by definition, this class takes
+	 * in input from the network, we need to supply the non-blocking Socket instance
+	 * from which we will read.
+	 * 
+	 * @param sockChan Non-blocking SocketChannel from which we will receive
+	 *                 communications.
+	 */
+<span class="fc" id="L62">	public ScanNetNB(SocketChannel sockChan) {</span>
+		// Create the queue that will hold the messages received from over the network
+<span class="fc" id="L64">		messages = new ConcurrentLinkedQueue&lt;&gt;();</span>
+		// Allocate the buffer we will use to read data
+<span class="fc" id="L66">		buff = ByteBuffer.allocate(BUFFER_SIZE);</span>
+		// Remember the channel that we will be using.
+<span class="fc" id="L68">		channel = sockChan;</span>
+		try {
+			// Open the selector to handle our non-blocking I/O
+<span class="fc" id="L71">			selector = Selector.open();</span>
+			// Register our channel to receive alerts to complete the connection
+<span class="fc" id="L73">			key = channel.register(selector, SelectionKey.OP_READ);</span>
+<span class="nc" id="L74">		} catch (IOException e) {</span>
+			// For the moment we are going to simply cover up that there was a problem.
+<span class="nc" id="L76">			logger.error(e.toString());</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">			assert false;</span>
+<span class="fc" id="L78">		}</span>
+<span class="fc" id="L79">	}</span>
+
+	/**
+	 * Creates a new instance of this class. Since, by definition, this class takes
+	 * in input from the network, we need to supply the non-blocking Socket instance
+	 * from which we will read.
+	 * 
+	 * @param connection Non-blocking Socket instance from which we will receive
+	 *                   communications.
+	 */
+	public ScanNetNB(SocketNB connection) {
+		// Get the socket channel from the SocketNB instance and go.
+<span class="fc" id="L91">		this(connection.getSocket());</span>
+<span class="fc" id="L92">	}</span>
+
+	/**
+	 * Read in a new argument from the IM server.
+	 * 
+	 * @param charBuffer Buffer holding text from over the network.
+	 * @return String holding the next argument sent over the network.
+	 */
+	private String readArgument(CharBuffer charBuffer) {
+		// Compute the current position in the buffer
+<span class="fc" id="L102">		int pos = charBuffer.position();</span>
+		// Compute the length of this argument
+<span class="fc" id="L104">		int length = 0;</span>
+		// Track the number of locations visited.
+<span class="fc" id="L106">		int seen = 0;</span>
+		// Assert that this character is a digit representing the length of the first argument
+<span class="pc bpc" id="L108" title="2 of 4 branches missed.">		assert Character.isDigit(charBuffer.get(pos));</span>
+		// Now read in the length of the first argument
+<span class="fc bfc" id="L110" title="All 2 branches covered.">		while (Character.isDigit(charBuffer.get(pos))) {</span>
+			// My quick-and-dirty numeric converter
+<span class="fc" id="L112">			length = length * DECIMAL_RADIX;</span>
+<span class="fc" id="L113">			length += Character.digit(charBuffer.get(pos), DECIMAL_RADIX);</span>
+			// Move to the next character
+<span class="fc" id="L115">			pos += 1;</span>
+<span class="fc" id="L116">			seen += 1;</span>
+		}
+<span class="fc" id="L118">		seen += 1;</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">		if (length == 0) {</span>
+			// Update our position
+<span class="nc" id="L121">			charBuffer.position(pos);</span>
+			// If the length is 0, this argument is null
+<span class="nc" id="L123">			return null;</span>
+		}
+<span class="fc" id="L125">		String result = charBuffer.subSequence(seen, length + seen).toString();</span>
+<span class="fc" id="L126">		charBuffer.position(pos + length);</span>
+<span class="fc" id="L127">		return result;</span>
+	}
+
+	/**
+	 * Returns true if there is another line of input from this instance. This
+	 * method will NOT block while waiting for input. This class does not advance
+	 * past any input.
+	 * 
+	 * @return True if and only if this instance of the class has another line of
+	 *         input
+	 * @throws Exception 
+	 * @see java.util.Scanner#hasNextLine()
+	 */
+	public boolean hasNextMessage() {
+		// If we have messages waiting for us, return true.
+<span class="fc bfc" id="L142" title="All 2 branches covered.">		if (!messages.isEmpty()) {</span>
+<span class="fc" id="L143">			return true;</span>
+		}
+		try {
+			// Otherwise, check if we can read in at least one new message
+<span class="fc bfc" id="L147" title="All 2 branches covered.">			if (selector.selectNow() != 0) {</span>
+<span class="pc bpc" id="L148" title="2 of 4 branches missed.">				assert key.isReadable();</span>
+				// Read in the next set of commands from the channel.
+<span class="fc" id="L150">				channel.read(buff);</span>
+<span class="fc" id="L151">				selector.selectedKeys().remove(key);</span>
+<span class="fc" id="L152">				buff.flip();</span>
+			} else {
+<span class="fc" id="L154">				return false;</span>
+			}
+			
+			// Create a decoder which will convert our traffic to something useful
+<span class="fc" id="L158">			Charset charset = Charset.forName(CHARSET_NAME);</span>
+<span class="fc" id="L159">			CharsetDecoder decoder = charset.newDecoder();</span>
+			// Convert the buffer to a format that we can actually use.
+<span class="fc" id="L161">			CharBuffer charBuffer = decoder.decode(buff);</span>
+			// get rid of any extra whitespace at the beginning
+			// Start scanning the buffer for any and all messages.
+<span class="fc" id="L164">			int start = 0;</span>
+			// Scan through the entire buffer; check that we have the minimum message size
+<span class="fc bfc" id="L166" title="All 2 branches covered.">			while ((start + MIN_MESSAGE_LENGTH) &lt;= charBuffer.limit()) {</span>
+				// If this is not the first message, skip extra space.
+<span class="fc bfc" id="L168" title="All 2 branches covered.">				if (start != 0) {</span>
+<span class="fc" id="L169">					charBuffer.position(start);</span>
+				}
+				// First read in the handle
+<span class="fc" id="L172">				final String handle = charBuffer.subSequence(0, HANDLE_LENGTH).toString();</span>
+				// Skip past the handle
+<span class="fc" id="L174">				charBuffer.position(start + HANDLE_LENGTH + 1);</span>
+				// Read the first argument containing the sender's name
+<span class="fc" id="L176">				final String sender = readArgument(charBuffer);</span>
+				// Skip past the leading space
+<span class="fc" id="L178">				charBuffer.position(charBuffer.position() + 2);</span>
+				// Read in the second argument containing the message
+<span class="fc" id="L180">				final String message = readArgument(charBuffer);</span>
+				
+				// Add this message into our queue
+<span class="fc" id="L183">				Message newMsg = Message.makeMessage(handle, sender, message);</span>
+					
+<span class="fc" id="L185">				messages.add(newMsg);</span>
+				// And move the position to the start of the next character
+<span class="fc" id="L187">				start = charBuffer.position() + 1;</span>
+<span class="fc" id="L188">			}</span>
+			// Move any read messages out of the buffer so that we can add to the end.
+<span class="fc" id="L190">			buff.position(start);</span>
+			// Move all of the remaining data to the start of the buffer.
+<span class="fc" id="L192">			buff.compact();</span>
+<span class="nc" id="L193">		} catch ( IOException e) {</span>
+			// For the moment, we will cover up this exception and hope it never occurs.
+<span class="nc" id="L195">			logger.error(e.getMessage());</span>
+<span class="fc" id="L196">		}</span>
+		// Do we now have any messages?
+<span class="fc bfc" id="L198" title="All 2 branches covered.">		return !messages.isEmpty(); </span>
+	}
+
+	/**
+	 * Advances past the current line and returns the line that was read. This
+	 * method returns the rest of the current line, excluding any line separator at
+	 * the end. The position in the input is set to the beginning of the next line.
+	 * 
+	 * @throws NextDoesNotExistException Exception thrown when hasNextLine returns
+	 *                                   false.
+	 * @return String containing the line that was skipped
+	 * @see java.util.Scanner#nextLine()
+	 */
+	public Message nextMessage() {
+<span class="fc bfc" id="L212" title="All 2 branches covered.">		if (messages.isEmpty()) {</span>
+<span class="fc" id="L213">			throw new NextDoesNotExistException(&quot;No next line has been typed in at the keyboard&quot;);</span>
+		}
+		
+<span class="fc" id="L216">		return messages.remove();</span>
+	}
+
+	public void close() {
+		try {
+<span class="fc" id="L221">			selector.close();</span>
+<span class="nc" id="L222">		} catch (IOException e) {</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">			assert false;</span>
+<span class="fc" id="L224">		}</span>
+<span class="fc" id="L225">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

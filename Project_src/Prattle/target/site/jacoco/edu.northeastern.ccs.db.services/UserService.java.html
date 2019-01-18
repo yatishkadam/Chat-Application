@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">prattle</a> &gt; <a href="index.source.html" class="el_package">edu.northeastern.ccs.db.services</a> &gt; <span class="el_source">UserService.java</span></div><h1>UserService.java</h1><pre class="source lang-java linenums">package edu.northeastern.ccs.db.services;
+
+import java.security.NoSuchAlgorithmException;
+import java.util.List;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import edu.northeastern.ccs.db.daos.UserDao;
+import edu.northeastern.ccs.im.HashGenerator;
+import edu.northeastern.ccs.im.models.User;
+
+/**
+ * The Class UserService.
+ */
+public class UserService {
+
+	/** The Constant logger. */
+	/*
+	 * Logger
+	 */
+<span class="fc" id="L22">	private static final Logger logger = LogManager.getLogger(UserService.class);</span>
+
+	/** The user dao. */
+<span class="fc" id="L25">	private static UserDao userDao = UserDao.getInstance();</span>
+
+	/**
+	 * Instantiates a new user service.
+	 */
+	private UserService() {
+	}
+
+	/**
+	 * Creates the user.
+	 *
+	 * @param username the username
+	 * @param password the password
+	 * @return true, if successful
+	 */
+	// true if created, false if otherwise
+	public static boolean createUser(String username, String password) {
+<span class="fc" id="L42">		int status = 0;</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">		if (!checkIfUserExists(username)) {</span>
+<span class="fc" id="L44">			status = userDao.createUser(new User(username, password));</span>
+		} else {
+<span class="fc" id="L46">			logger.warn(&quot;A user already exists with this username [CREATION UNSUCCESSFUL]&quot;);</span>
+		}
+<span class="fc bfc" id="L48" title="All 2 branches covered.">		return (status == 1);</span>
+	}
+
+	/**
+	 * Gets the tapping agency for user.
+	 *
+	 * @param username the username
+	 * @return the tapping agency for user
+	 */
+	public static String getTappingAgencyForUser(String username) {
+<span class="fc" id="L58">		return userDao.getTappedbyForUser(username);</span>
+	}
+
+	/**
+	 * Sets the tapping agency for user.
+	 *
+	 * @param username the username
+	 * @return true, if successful
+	 * @author Karan Tyagi
+	 */
+	public static boolean setTappedByAgencyForUser(String username, String tappingAgency) {
+<span class="fc" id="L69">		return userDao.setTappingAgencyForUser(username, tappingAgency);</span>
+	}
+
+	/**
+	 * Gets the censored words for user.
+	 *
+	 * @param username the username
+	 * @return the censored words for user
+	 */
+	public static String getCensoredWordsForUser(String username) {
+<span class="fc" id="L79">		return userDao.getCensoredWords(username);</span>
+	}
+
+	/**
+	 * Sets the censored words for user.
+	 *
+	 * @param username the username
+	 * @param words    the words
+	 * @return true, if successful
+	 */
+	// true means success else failure
+	public static boolean setCensoredWordsForUser(String username, String words) {
+<span class="fc" id="L91">		return userDao.setCensoredWords(username, words);</span>
+	}
+
+	/**
+	 * Gets the username for id.
+	 *
+	 * @param user_id the user id
+	 * @return the username for id
+	 */
+	public static String getUsernameForId(int userId) {
+<span class="fc" id="L101">		return userDao.getUserName(userId);</span>
+	}
+
+	/**
+	 * Check if user exists.
+	 *
+	 * @param name the name
+	 * @return true, if successful
+	 */
+	public static boolean checkIfUserExists(String name) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">		return (userDao.findUserByUsername(name) != null);</span>
+	}
+
+	/**
+	 * Delete user.
+	 *
+	 * @param name the name
+	 * @return true, if successful
+	 */
+	// 1 means delete successful, otherwise failed
+	public static boolean deleteUser(String name) {
+<span class="fc bfc" id="L122" title="All 2 branches covered.">		return (userDao.deleteUser(name) == 1);</span>
+	}
+
+	/**
+	 * Update user.
+	 *
+	 * @param name    the name
+	 * @param userObj the user obj
+	 * @return true, if successful
+	 */
+	// 1 means update successful, otherwise failed
+	public static boolean updateUser(String name, User userObj) {
+<span class="fc bfc" id="L134" title="All 2 branches covered.">		return (userDao.updateUser(name, userObj) == 1);</span>
+	}
+
+	/**
+	 * Validate password.
+	 *
+	 * @param name     the name
+	 * @param password the password
+	 * @return true, if successful
+	 */
+	public static boolean validatePassword(String name, String password) {
+<span class="fc" id="L145">		User user = userDao.findUserByUsername(name);</span>
+		try {
+<span class="fc" id="L147">			return user.getPassword().equals(HashGenerator.getSHA256(password));</span>
+<span class="fc" id="L148">		} catch (NullPointerException | NoSuchAlgorithmException e) {</span>
+<span class="fc" id="L149">			logger.error(e);</span>
+		}
+<span class="fc" id="L151">		return false;</span>
+	}
+
+	/**
+	 * Join group.
+	 *
+	 * @param username  the username
+	 * @param groupName the group name
+	 * @return the int
+	 */
+	public static int joinGroup(String username, String groupName) {
+<span class="fc" id="L162">		return MembershipService.addMember(username, groupName);</span>
+	}
+
+	/**
+	 * Leave group.
+	 *
+	 * @param username  the username
+	 * @param groupName the group name
+	 * @return true, if successful
+	 */
+	public static boolean leaveGroup(String username, String groupName) {
+<span class="fc" id="L173">		return MembershipService.removeMember(username, groupName);</span>
+	}
+
+	/**
+	 * My groups.
+	 *
+	 * @param username the username
+	 * @return the list
+	 */
+	public static List&lt;String&gt; myGroups(String username) {
+<span class="fc" id="L183">		return MembershipService.getUserGroups(username);</span>
+	}
+
+	/**
+	 * Gets the user data.
+	 *
+	 * @param username the username
+	 * @return the user data
+	 */
+	public static User getUserData(String username) {
+<span class="fc" id="L193">		return userDao.findUserByUsername(username);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>
